@@ -16,7 +16,12 @@ static inline time_t get_mtime(const char *filename) {
     return st.st_mtime;
 }
 static inline int mkdir_safe(const char *path) {
-    if (mkdir(path, 0755) == -1 && errno != EEXIST) {
+    #ifndef WIN32
+        if (mkdir(path, 0755) == -1 && errno != EEXIST) {
+    #endif
+    #ifdef WIN32
+        if (mkdir(path) == -1 && errno != EEXIST) {
+    #endif
         perror("mkdir");
         return 0;
     }
@@ -54,13 +59,24 @@ int main(int argc, char** argv){
         snprintf(path, sizeof(path), "%s/.nct/.nct", argv[2]);
         FILE *conf = fopen(path, "w");
         if (!conf) { perror("fopen"); return 1; }
-        fprintf(conf, 
-            "gcc ./test.c -o ./.nct/test -Wall -Wextra\n"
-            "./.nct/test\n"
-            "gcc ./build.c -o ./.nct/build -Wall -Wextra\n"
-            "./.nct/build\n"
-            "./bin/%s\n"
-            "0\n0\n", argv[2]);
+        #ifndef WIN32
+            fprintf(conf, 
+                "gcc ./test.c -o ./.nct/test -Wall -Wextra\n"
+                "./.nct/test\n"
+                "gcc ./build.c -o ./.nct/build -Wall -Wextra\n"
+                "./.nct/build\n"
+                "./bin/%s\n"
+                "0\n0\n", argv[2]);
+        #endif
+        #ifdef WIN32
+            fprintf(conf, 
+                "gcc test.c -o .nct\\test -Wall -Wextra\n"
+                ".nct\\test\n"
+                "gcc build.c -o .nct\\build -Wall -Wextra\n"
+                ".nct\\build\n"
+                "bin\\%s\n"
+                "0\n0\n", argv[2]); 
+        #endif
         fclose(conf);
         snprintf(path, sizeof(path), "%s/src/common.h", argv[2]);
         FILE *common = fopen(path, "w");

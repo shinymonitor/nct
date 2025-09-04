@@ -57,10 +57,3 @@ Compiles and runs `test.c`. Automatically recompiles if the test source was modi
 ## Requirements
 
 - GCC (default, but configurable in build.c)
-- POSIX-like environment (Linux/macOS). Windows may need adjustments.
-
-## Build
-```
-gcc nct.c -o nct -Wall -Wextra -Werror
-```
-
