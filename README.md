@@ -5,12 +5,14 @@ It helps you quickly initialize, build, test, and run C projects with a simple c
 ## Features
 - **init** : create a new project with 
 boilerplate files & directories
-- **build** : compile your project using `build.c`
+- **build** : builds your project using `build.c`
+- **rebuild** : force rebuilds your project using `build.c`
 - **run** : run the compiled binary
 - **test** : compile & run `test.c`
 - **run** : run the compiled binary
 - Simple `.nct/.nct` config file stores build/test/run commands and timestamps
 - Cross-platform friendly (non shell commands)
+- Argument passing to compiled binaries
 
 ## User guide
 ### Initialize a new project
@@ -53,7 +55,3 @@ Compiles and runs `test.c`. Automatically recompiles if the test source was modi
     │
     └── test.c
 ```
-
-## Requirements
-
-- GCC (default, but configurable in build.c)
