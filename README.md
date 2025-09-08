@@ -3,13 +3,10 @@ NiCeTy is a lightweight command-line project manager for C projects.
 It helps you quickly initialize, build, test, and run C projects with a simple configuration system.
 
 ## Features
-- **init** : create a new project with 
-boilerplate files & directories
-- **build** : builds your project using `build.c`
-- **rebuild** : force rebuilds your project using `build.c`
-- **run** : run the compiled binary
-- **test** : compile & run `test.c`
-- **run** : run the compiled binary
+- Project directory initialisation with boilerplate files & directories
+- Intuitive build receipe in C
+- Argument passing to build, test and run commands
+- Command to initiate tests for the project
 - Simple `.nct/.nct` config file stores build/test/run commands and timestamps
 - Cross-platform friendly (non shell commands)
 - Argument passing to compiled binaries
@@ -34,7 +31,7 @@ nct run
 This, by default, runs `bin/project`.
 ### Run tests
 ```
-nct run
+nct test
 ```
 Compiles and runs `test.c`. Automatically recompiles if the test source was modified.
 
