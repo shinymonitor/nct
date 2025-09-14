@@ -1,217 +1,245 @@
-#include <stdlib.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 #include <sys/stat.h>
 #include <time.h>
-#include <errno.h>
+#include <stdbool.h>
 
-#define CONF_FILE ".nct/.nct"
-#define PROJ_NAME_LEN 16
-#define CONF_LEN 128
-#define MTIME_LEN 32
+#define PROJECT_NAME_MAX_LEN 16
+#define PATH_MAX_LEN 256
+#define CONFIG_MAX_LEN 256
+#define COMMAND_MAX_LEN 512
 
-static inline char exists(const char *fname)
-{
-    FILE *file;
-    if ((file = fopen(fname, "r"))) {fclose(file); return 1;}
-    return 0;
-}
+#define HELP_MESSAGE \
+    "Usage: nct [COMMAND] [ARGS]\n\n"\
+    "Commands:\n"\
+    "\tinit    [NAME] Initializes a project with a given name and make .nct/.nct\n"\
+    "\tbuild   [ARGS] Builds project using build.c\n"\
+    "\ttest    [ARGS] Build and run test.c\n"\
+    "\thelp    Print this message\n"
 
-static inline time_t get_mtime(const char *filename) {
+#define CONFIG_FILE_CONTENT \
+    "test_compile=gcc test.c -o .nct/test -Wall -Wextra\n"\
+    "test_binary=.nct/test\n"\
+    "build_compile=gcc build.c -o .nct/build -Wall -Wextra\n"\
+    "build_binary=.nct/build\n"
+
+#define MAIN_C_CONTENT \
+    "#include <stdio.h>\n"\
+    "int main(){\n"\
+    "    printf(\"Hello World\\n\");\n"\
+    "    return 0;\n"\
+    "}\n"
+
+#define BUILD_H_CONTENT \
+    "#include <stdlib.h>\n"\
+    "#include <stdio.h>\n"\
+    "#include <stdbool.h>\n"\
+    "#include <sys/stat.h>\n"\
+    "#include <time.h>\n"\
+    "//============================================\n"\
+    "bool file_exists(char *file_name);\n"\
+    "bool ensure_dir(char *path);\n"\
+    "bool copy_file(char *src, char *dest);\n"\
+    "bool is_newer(char *file1, char *file2);\n"\
+    "bool compile_if_changed(char *src, char *bin, char *command);\n"\
+    "bool run_command(char *command);\n"\
+    "bool fetch_to_lib(char *url, char *file_name);\n"\
+    "bool fetch_to_lib_if_missing(char *url, char *file_name);\n"\
+    "void print_info(char *message);\n"\
+    "//============================================\n"\
+    "#define COMMAND_MAX_LEN 512\n"\
+    "bool file_exists(char *file_name){\n"\
+    "\tFILE *file;\n"\
+    "\tif ((file = fopen(file_name, \"r\"))) {fclose(file); return true;}\n"\
+    "\treturn false;\n"\
+    "}\n"\
+    "bool ensure_dir(char *path){\n"\
+    "\tif (file_exists(path)) return true;\n"\
+    "\tchar command[COMMAND_MAX_LEN];\n"\
+    "\tsnprintf(command, sizeof(command), \"mkdir -p %%s\", path);\n"\
+    "\treturn !system(command);\n"\
+    "}\n"\
+    "bool copy_file(char *src, char *dest){\n"\
+    "\tchar command[COMMAND_MAX_LEN];\n"\
+    "\tsnprintf(command, sizeof(command), \"cp %%s %%s\", src, dest);\n"\
+    "\treturn !system(command);\n"\
+    "}\n"\
+    "static inline time_t get_mtime(char *filename) {\n"\
+    "\tstruct stat st;\n"\
+    "\tif (stat(filename, &st) == -1) return 0;\n"\
+    "\treturn st.st_mtime;\n"\
+    "}\n"\
+    "bool is_newer(char *file1, char *file2){return get_mtime(file1)>get_mtime(file2);}\n"\
+    "bool run_command(char *command){return !system(command);}\n"\
+    "bool compile_if_changed(char *src, char *bin, char *command){\n"\
+    "\tif (!is_newer(src, bin)) return true;\n"\
+    "\treturn !system(command);\n"\
+    "}\n"\
+    "bool fetch_to_lib(char *url, char *file_name){\n"\
+    "\tchar command[COMMAND_MAX_LEN];\n"\
+    "\tsnprintf(command, sizeof(command), \"wget -q --show-progress %%s -O lib/%%s\", url, file_name);\n"\
+    "\treturn !system(command);\n"\
+    "}\n"\
+    "bool fetch_to_lib_if_missing(char *url, char *file_name){\n"\
+    "\tchar full_path[COMMAND_MAX_LEN];\n"\
+    "\tsnprintf(full_path, sizeof(full_path), \"lib/%%s\", file_name);\n"\
+    "\tif(file_exists(full_path)) return true;\n"\
+    "\tchar command[COMMAND_MAX_LEN];\n"\
+    "\tsnprintf(command, sizeof(command), \"wget -q --show-progress %%s -O lib/%%s\", url, file_name);\n"\
+    "\treturn !system(command);\n"\
+    "}\n"\
+    "void print_info(char *message){printf(\"[BUILD] %%s\\n\", message);}"
+
+#define BUILD_C_CONTENT \
+    "#include \"build.h\"\n"\
+    "#define COMPILER \"gcc\"\n"\
+    "#define SRC \"src/main.c\"\n"\
+    "#define BIN \"build/%s\"\n"\
+    "#define FLAGS \"-Wall -Wextra -Werror -O3\"\n\n"\
+    "int main(){\n"\
+    "    run_command(COMPILER\" \"SRC\" -o \"BIN\" \" FLAGS);\n"\
+    "    return 0;\n"\
+    "}\n"
+
+#define TEST_C_CONTENT \
+    "#include <stdio.h>\n"\
+    "int main(){\n"\
+    "    printf(\"No tests written\\n\");\n"\
+    "    return 0;\n"\
+    "}\n"
+
+static inline time_t get_mtime(char *filename) {
     struct stat st;
     if (stat(filename, &st) == -1) return 0;
     return st.st_mtime;
 }
-static inline int mkdir_safe(const char *path) {
-    #ifndef WIN32
-        if (mkdir(path, 0755) == -1 && errno != EEXIST) {
-    #endif
-    #ifdef WIN32
-        if (mkdir(path) == -1 && errno != EEXIST) {
-    #endif
-        perror("mkdir");
-        return 0;
+static inline bool file_exists(char *file_name){
+    FILE *file;
+    if ((file = fopen(file_name, "r"))) {fclose(file); return true;}
+    return false;
+}
+static inline bool mkdir_safe(const char *path) {
+    if (mkdir(path, 0755) == -1) {perror("mkdir"); return false;}
+    return true;
+}
+static inline bool get_config(FILE* file, const char* config_name, char* config_buffer){
+    char line[CONFIG_MAX_LEN * 2];
+    rewind(file);
+    while (fgets(line, sizeof(line), file)) {
+        if (line[0] == '\n' || line[0] == '#') continue;
+        char *equals = strchr(line, '=');
+        if (!equals) continue;
+        *equals = '\0';
+        char *value = equals + 1;
+        char *newline = strchr(value, '\n');
+        if (newline) *newline = '\0';
+        if (strcmp(line, config_name) == 0) {
+            strncpy(config_buffer, value, CONFIG_MAX_LEN - 1);
+            config_buffer[CONFIG_MAX_LEN - 1] = '\0';
+            return true;
+        }
     }
-    return 1;
+    return false;
 }
 
 int main(int argc, char** argv){
     if(argc==1) {printf("No command was given. Run 'nct help' for more information.\n"); return 1;}
-    else if(strcmp(argv[1], "help")==0) {printf("Usage: nct [COMMAND] [ARGS]\n\n"
-        "Commands:\n"
-        "\tinit    [NAME] Initializes a project with a given name and make .nct/.nct\n"
-        "\tbuild   [ARGS] Builds project using build.c\n"
-        "\trebuild [ARGS] Force rebuilds project using build.c\n"
-        "\trun     [ARGS] Run the built executable\n"
-        "\ttest    [ARGS] Build and run test.c\n"
-        "\thelp    Print this message\n\n"
-        ".nct file structure: \n"
-        "\t<compile test command>\n"
-        "\t<run test command>\n"
-        "\t<compile build command>\n"
-        "\t<run build command>\n"
-        "\t<run bin command>\n"
-        "\t<last modified test>\n"
-        "\t<last modified build>\n"); return 0;}
+    else if(strcmp(argv[1], "help")==0) {printf(HELP_MESSAGE); return 0;}
     else if(strcmp(argv[1], "init")==0) {
         if(argc==2) {printf("No project name was given. Run 'nct help' for more information.\n"); return 1;}
-        if(strlen(argv[2])>PROJ_NAME_LEN) {printf("Project name too long (max %d chars).\n", PROJ_NAME_LEN); return 1;}
+        if(strlen(argv[2])>PROJECT_NAME_MAX_LEN) {printf("Project name too long (max %d chars).\n", PROJECT_NAME_MAX_LEN); return 1;}
         if (!mkdir_safe(argv[2])) return 1;
-        char path[256];
+        char path[PATH_MAX_LEN];
         snprintf(path, sizeof(path), "%s/.nct", argv[2]);
         if (!mkdir_safe(path)) return 1;
-        snprintf(path, sizeof(path), "%s/bin", argv[2]);
+        snprintf(path, sizeof(path), "%s/build", argv[2]);
+        if (!mkdir_safe(path)) return 1;
+        snprintf(path, sizeof(path), "%s/lib", argv[2]);
         if (!mkdir_safe(path)) return 1;
         snprintf(path, sizeof(path), "%s/src", argv[2]);
         if (!mkdir_safe(path)) return 1;
         snprintf(path, sizeof(path), "%s/.nct/.nct", argv[2]);
-        FILE *conf = fopen(path, "w");
-        if (!conf) { perror("fopen"); return 1; }
-        #ifndef WIN32
-            fprintf(conf, 
-                "gcc ./test.c -o ./.nct/test -Wall -Wextra\n"
-                "./.nct/test\n"
-                "gcc ./build.c -o ./.nct/build -Wall -Wextra\n"
-                "./.nct/build\n"
-                "./bin/%s\n"
-                "0\n0\n", argv[2]);
-        #endif
-        #ifdef WIN32
-            fprintf(conf, 
-                "gcc test.c -o .nct\\test -Wall -Wextra\n"
-                ".nct\\test\n"
-                "gcc build.c -o .nct\\build -Wall -Wextra\n"
-                ".nct\\build\n"
-                "bin\\%s\n"
-                "0\n0\n", argv[2]); 
-        #endif
-        fclose(conf);
-        snprintf(path, sizeof(path), "%s/src/common.h", argv[2]);
-        FILE *common = fopen(path, "w");
-        fprintf(common, 
-            "#pragma once\n"
-            "#include <stdint.h>\n");
-        fclose(common);
+        FILE *config_file = fopen(path, "w");
+        if (!config_file) { perror("fopen"); return 1; }
+        fprintf(config_file, CONFIG_FILE_CONTENT);
+        fclose(config_file);
         snprintf(path, sizeof(path), "%s/src/main.c", argv[2]);
         FILE *mainc = fopen(path, "w");
-        fprintf(mainc,
-            "#include \"common.h\"\n"
-            "#include <stdio.h>\n\n"
-            "int main(){\n"
-            "    printf(\"Hello World\\n\");\n"
-            "    return 0;\n"
-            "}\n");
+        if (!mainc) { perror("fopen main.c"); return 1; }
+        fprintf(mainc, MAIN_C_CONTENT);
         fclose(mainc);
+        snprintf(path, sizeof(path), "%s/build.h", argv[2]);
+        FILE *buildh = fopen(path, "w");
+        if (!buildh) { perror("fopen build.h"); return 1; }
+        fprintf(buildh, BUILD_H_CONTENT);
+        fclose(buildh);
         snprintf(path, sizeof(path), "%s/build.c", argv[2]);
         FILE *buildc = fopen(path, "w");
-        fprintf(buildc,
-            "#include <stdlib.h>\n\n"
-            "#define COMPILER \"gcc\"\n"
-            "#define SRC \"./src/main.c\"\n"
-            "#define BIN \"./bin/%s\"\n"
-            "#define FLAGS \"-Wall -Wextra -Werror -O3\"\n\n"
-            "int main(){\n"
-            "    system(COMPILER\" \"SRC\" -o \"BIN\" \" FLAGS);\n"
-            "    return 0;\n"
-            "}\n", argv[2]);
+        if (!buildc) { perror("fopen build.c"); return 1; }
+        fprintf(buildc, BUILD_C_CONTENT, argv[2]);
         fclose(buildc);
         snprintf(path, sizeof(path), "%s/test.c", argv[2]);
         FILE *testc = fopen(path, "w");
-        fprintf(testc,
-            "#include <stdio.h>\n\n"
-            "int main(){\n"
-            "    printf(\"No tests written\\n\");\n"
-            "    return 0;\n"
-            "}\n");
+        if (!testc) { perror("fopen test.c"); return 1; }
+        fprintf(testc, TEST_C_CONTENT);
         fclose(testc);
         return 0;
     }
-    char compile_test_command[CONF_LEN], run_test_command[CONF_LEN],
-    compile_build_command[CONF_LEN], run_build_command[CONF_LEN],
-    run_bin_command[CONF_LEN],
-    last_modified_test[MTIME_LEN], last_modified_build[MTIME_LEN], 
-    get_last_modified_test[MTIME_LEN], get_last_modified_build[MTIME_LEN];
-    FILE* file;
-    if(strcmp(argv[1], "run")==0) {
-        file = fopen("./.nct/.nct", "r");
-        if(!file) {printf("Couldn't open .nct/.nct. Make sure that a valid .nct/.nct exist or create one using \'nct init\'\n"); return 1;}
-        if(!fgets(compile_test_command, CONF_LEN, file) || !fgets(run_test_command, CONF_LEN, file) || !fgets(compile_build_command, CONF_LEN, file) || !fgets(run_build_command, CONF_LEN, file) || !fgets(run_bin_command, CONF_LEN, file)) {printf("Couldn't read .nct/.nct properly. Make sure that a valid .nct/.nct exist or create one using \'nct init\'\n"); fclose(file); return 1;}
-        fclose(file);
-        run_bin_command[strlen(run_bin_command)-1]=0;
-        if (!exists(run_bin_command)) {printf("%s was not found. Run \'nct build ...\' if needed.\n", run_bin_command); return 0;}
-        for(int i=2; i<argc; ++i) {
-            if (strlen(run_bin_command)+strlen(argv[i])+1>CONF_LEN) {printf("Too many arguments and/or command too long.\n"); return 1;}
-            strcat(run_bin_command, " ");
-            strcat(run_bin_command, argv[i]);
-        }
-        if(system(run_bin_command)) {printf("Couldn't run bin command properly.\n"); return 1;}
-        return 0;
-    }
     else if(strcmp(argv[1], "test")==0) {
-        file = fopen("./.nct/.nct", "r");
-        if(!file) {printf("Couldn't open .nct/.nct. Make sure that a valid .nct/.nct exist or create one using \'nct init\'\n"); return 1;}
-        if(!fgets(compile_test_command, CONF_LEN, file) || !fgets(run_test_command, CONF_LEN, file) || !fgets(compile_build_command, CONF_LEN, file) || !fgets(run_build_command, CONF_LEN, file) || !fgets(run_bin_command, CONF_LEN, file) || !fgets(last_modified_test, MTIME_LEN, file) || !fgets(last_modified_build, MTIME_LEN, file)) {printf("Couldn't read .nct/.nct properly. Make sure that a valid .nct/.nct exist or create one using \'nct init\'\n"); fclose(file); return 1;}
-        fclose(file);
-        snprintf(get_last_modified_test, MTIME_LEN, "%ld", (long)get_mtime("test.c"));
-        file = fopen("./.nct/.nct", "w");
-        if(!file) {printf("Couldn't open .nct/.nct. Make sure that a valid .nct/.nct exist or create one using \'nct init\'\n"); return 1;}
-        fprintf(file, "%s%s%s%s%s", compile_test_command, run_test_command, compile_build_command, run_build_command, run_bin_command);
-        last_modified_test[strlen(last_modified_test)-1]=0;
-        run_test_command[strlen(run_test_command)-1]=0;
-        if(strcmp(last_modified_test, get_last_modified_test) | !exists(run_test_command)) if(system(compile_test_command)) {
-            printf("Couldn't run compile test command properly.\n");
-            fprintf(file, "%s\n%s", last_modified_test, last_modified_build);
-            fclose(file); return 1;
+        FILE* config_file = fopen(".nct/.nct", "r");
+        if(!config_file) {printf("Couldn't open .nct/.nct. Make sure that a valid .nct/.nct exist or create one using \'nct init\'\n"); return 1;}
+        char test_compile[CONFIG_MAX_LEN]={0};
+        char test_binary[CONFIG_MAX_LEN]={0};
+        if (!get_config(config_file, "test_compile", test_compile)) {
+            printf("test_compile configuration not found\n");
+            fclose(config_file);
+            return 1;
         }
-        fprintf(file, "%s\n%s", get_last_modified_test, last_modified_build);
-        fclose(file);
+        if (!get_config(config_file, "test_binary", test_binary)) {
+            printf("test_binary configuration not found\n");
+            fclose(config_file);
+            return 1;
+        }
+        fclose(config_file);
+        if (!file_exists(test_binary)) {if(system(test_compile)) {printf("Couldn't run test compile command: %s\n", test_compile); return 1;}}
+        else if (get_mtime("test.c")>get_mtime(test_binary)) if(system(test_compile)) {printf("Couldn't run test compile command: %s\n", test_compile); return 1;}
+        char run_test_command[COMMAND_MAX_LEN];
+        snprintf(run_test_command, sizeof(run_test_command), "%s", test_binary);
         for(int i=2; i<argc; ++i) {
-            if (strlen(run_test_command)+strlen(argv[i])+1>CONF_LEN) {printf("Too many arguments and/or command too long.\n"); return 1;}
+            if (strlen(run_test_command)+strlen(argv[i])+1>COMMAND_MAX_LEN) {printf("Too many arguments and/or command too long.\n"); return 1;}
             strcat(run_test_command, " ");
             strcat(run_test_command, argv[i]);
         }
-        if(system(run_test_command)) {printf("Couldn't run test command properly.\n"); return 1;}
+        if(system(run_test_command)) {printf("Test failed or returned non-zero exit code\n"); return 1;}
     }
     else if(strcmp(argv[1], "build")==0) {
-        file = fopen("./.nct/.nct", "r");
-        if(!file) {printf("Couldn't open .nct/.nct. Make sure that a valid .nct/.nct exist or create one using \'nct init\'\n"); return 1;}
-        if(!fgets(compile_test_command, CONF_LEN, file) || !fgets(run_test_command, CONF_LEN, file) || !fgets(compile_build_command, CONF_LEN, file) || !fgets(run_build_command, CONF_LEN, file) || !fgets(run_bin_command, CONF_LEN, file) || !fgets(last_modified_test, MTIME_LEN, file) || !fgets(last_modified_build, MTIME_LEN, file)) {printf("Couldn't read .nct/.nct properly. Make sure that a valid .nct/.nct exist or create one using \'nct init\'\n"); fclose(file); return 1;}
-        fclose(file);
-        snprintf(get_last_modified_build, MTIME_LEN, "%ld", (long)get_mtime("build.c"));
-        file = fopen("./.nct/.nct", "w");
-        if(!file) {printf("Couldn't open .nct/.nct. Make sure that a valid .nct/.nct exist or create one using \'nct init\'\n"); return 1;}
-        fprintf(file, "%s%s%s%s%s", compile_test_command, run_test_command, compile_build_command, run_build_command, run_bin_command);
-        last_modified_build[strlen(last_modified_build)-1]=0;
-        run_build_command[strlen(run_build_command)-1]=0;
-        if(strcmp(last_modified_build, get_last_modified_build) | !exists(run_build_command)) if(system(compile_build_command)) {
-            printf("Couldn't run compile build command properly.\n");
-            fprintf(file, "%s%s\n", last_modified_test, last_modified_build);
-            fclose(file); return 1;
+        FILE* config_file = fopen(".nct/.nct", "r");
+        if(!config_file) {printf("Couldn't open .nct/.nct. Make sure that a valid .nct/.nct exist or create one using \'nct init\'\n"); return 1;}
+        char build_compile[CONFIG_MAX_LEN]={0};
+        char build_binary[CONFIG_MAX_LEN]={0};
+        if (!get_config(config_file, "build_compile", build_compile)) {
+            printf("build_compile configuration not found\n");
+            fclose(config_file);
+            return 1;
         }
-        fprintf(file, "%s%s\n", last_modified_test, get_last_modified_build);
-        fclose(file);
+        if (!get_config(config_file, "build_binary", build_binary)) {
+            printf("build_binary configuration not found\n");
+            fclose(config_file);
+            return 1;
+        }
+        fclose(config_file);
+        if (!file_exists(build_binary)) {if(system(build_compile)) {printf("Couldn't run build compile command: %s\n", build_compile); return 1;}}
+        else if (get_mtime("build.c")>get_mtime(build_binary)) if(system(build_compile)) {printf("Couldn't run build compile command: %s\n", build_compile); return 1;}
+        char run_build_command[COMMAND_MAX_LEN];
+        snprintf(run_build_command, sizeof(run_build_command), "%s", build_binary);
         for(int i=2; i<argc; ++i) {
-            if (strlen(run_build_command)+strlen(argv[i])+1>CONF_LEN) {printf("Too many arguments and/or command too long.\n"); return 1;}
+            if (strlen(run_build_command)+strlen(argv[i])+1>COMMAND_MAX_LEN) {printf("Too many arguments and/or command too long.\n"); return 1;}
             strcat(run_build_command, " ");
             strcat(run_build_command, argv[i]);
         }
-        if(system(run_build_command)) {printf("Couldn't run build command properly.\n"); return 1;}
-    }
-    else if(strcmp(argv[1], "rebuild")==0) {
-        file = fopen("./.nct/.nct", "r");
-        if(!file) {printf("Couldn't open .nct/.nct. Make sure that a valid .nct/.nct exist or create one using \'nct init\'\n"); return 1;}
-        if(!fgets(compile_test_command, CONF_LEN, file) || !fgets(run_test_command, CONF_LEN, file) || !fgets(compile_build_command, CONF_LEN, file) || !fgets(run_build_command, CONF_LEN, file) || !fgets(run_bin_command, CONF_LEN, file) || !fgets(last_modified_test, MTIME_LEN, file) || !fgets(last_modified_build, MTIME_LEN, file)) {printf("Couldn't read .nct/.nct properly. Make sure that a valid .nct/.nct exist or create one using \'nct init\'\n"); fclose(file); return 1;}
-        fclose(file);
-        if(system(compile_build_command)) {printf("Couldn't run compile build command properly.\n"); return 1;}
-        run_build_command[strlen(run_build_command)-1]=0;
-        for(int i=2; i<argc; ++i) {
-            if (strlen(run_build_command)+strlen(argv[i])+1>CONF_LEN) {printf("Too many arguments and/or command too long.\n"); return 1;}
-            strcat(run_build_command, " ");
-            strcat(run_build_command, argv[i]);
-        }
-        if(system(run_build_command)) {printf("Couldn't run build command properly.\n"); return 1;}
+        if(system(run_build_command)) {printf("Build failed or returned non-zero exit code\n"); return 1;}
     }
     else {printf("Unknown command was given. Run 'nct help' for more information.\n"); return 1;}
     return 0;
 }
-

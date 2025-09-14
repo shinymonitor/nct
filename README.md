@@ -1,15 +1,23 @@
-# NiCeTy
-NiCeTy is a lightweight command-line project manager for C projects.
-It helps you quickly initialize, build, test, and run C projects with a simple configuration system.
+# NCT (NiCeTy)
+NCT is a lightweight command-line project manager for C projects. It helps you quickly initialize, build, and test C projects with a simple configuration system and powerful build utilities.
 
 ## Features
-- Project directory initialisation with boilerplate files & directories
-- Intuitive build receipe in C
-- Argument passing to build, test and run commands
+- Quick project initialization with boilerplate files & directories
+- Intuitive C-based build recipes that helps you write your build logic in C, not shell scripts
+- Built-in build utilities via build.h including:
+    - Dependency fetching from URLs
+    - Incremental compilation (compile only when source changes)
+    - File operations (copy, exists, directory creation)
+- Automatic recompilation only rebuilds when source files change
+- Simple configuration via `.nct/.nct` config file
 - Command to initiate tests for the project
-- Simple `.nct/.nct` config file stores build/test/run commands and timestamps
-- Cross-platform friendly (non shell commands)
-- Argument passing to compiled binaries
+- Argument passing to build and test commands
+
+## Why NCT?
+- Simple: No complex build systems or DSLs to learn
+- Flexible: Build scripts are just C code. Opportunity to use better C build recipe systems like [nob.h](https://github.com/tsoding/nob.h)
+- Fast: Incremental builds and minimal overhead
+- Self-contained: Each project includes its build utilities
 
 ## User guide
 ### Initialize a new project
@@ -22,13 +30,8 @@ This creates a folder `project/` with boilerplate source, header, build and test
 ```
 nct build
 ```
-This compiles and runs `build.c` which, by default, compiles `src/main.c` into `bin/project`. 
+This compiles and runs `build.c` which, by default, compiles `src/main.c` into `build/project`. 
 Automatically recompiles if the build source was modified.
-### Run the binary
-```
-nct run
-```
-This, by default, runs `bin/project`.
 ### Run tests
 ```
 nct test
@@ -40,15 +43,15 @@ Compiles and runs `test.c`. Automatically recompiles if the test source was modi
 <project_name>
     │
     ├──.nct
-    │    ├──.nct
-    │
-    ├── bin
-    │
+    │    └──.nct
+    ├── build
+    ├── lib
     ├── src
-    │    ├── common.h
     │    └── main.c
-    │
     ├── build.c
-    │
+    ├── build.h
     └── test.c
 ```
+
+## Todo
+- Add windows support
