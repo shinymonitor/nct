@@ -37,51 +37,71 @@
     "#include <stdbool.h>\n"\
     "#include <sys/stat.h>\n"\
     "#include <time.h>\n"\
+    "#include <string.h>\n"\
     "//============================================\n"\
-    "bool file_exists(char *file_name);\n"\
-    "bool ensure_dir(char *path);\n"\
-    "bool copy_file(char *src, char *dest);\n"\
-    "bool is_newer(char *file1, char *file2);\n"\
-    "bool compile_if_changed(char *src, char *bin, char *command);\n"\
-    "bool run_command(char *command);\n"\
-    "bool fetch_to_lib(char *url, char *file_name);\n"\
-    "bool fetch_to_lib_if_missing(char *url, char *file_name);\n"\
-    "void print_info(char *message);\n"\
+    "bool argument_is(int i, char* argument, int argc, char** argv);\n"\
+    "bool file_exists(char* file_name);\n"\
+    "bool rm_file(char* file_name);\n"\
+    "bool rm_dir(char* dir_name);\n"\
+    "bool ensure_dir(char* path);\n"\
+    "bool copy_file(char* src, char* dest);\n"\
+    "bool is_newer(char* file1, char* file2);\n"\
+    "bool compile_if_changed(char* src, char* bin, char* command);\n"\
+    "bool run_command(char* command);\n"\
+    "bool fetch_to_lib(char* file_name, char* url);\n"\
+    "bool fetch_to_lib_if_missing(char* file_name, char* url);\n"\
+    "void print_info(char* message);\n"\
+    "void print_error(char* message);\n"\
     "//============================================\n"\
     "#define COMMAND_MAX_LEN 512\n"\
-    "bool file_exists(char *file_name){\n"\
+    "bool argument_is(int i, char* argument, int argc, char** argv){\n"\
+	"\tif (argc<i+1) return false;\n"\
+	"\treturn (strcmp(argv[i], argument)==0);\n"\
+    "}\n"\
+    "bool file_exists(char* file_name){\n"\
     "\tFILE *file;\n"\
     "\tif ((file = fopen(file_name, \"r\"))) {fclose(file); return true;}\n"\
     "\treturn false;\n"\
     "}\n"\
-    "bool ensure_dir(char *path){\n"\
+    "bool rm_file(char* file_name){\n"\
+	"\tif (!file_exists(file_name)) return false;\n"\
+	"\tchar command[COMMAND_MAX_LEN];\n"\
+	"\tsnprintf(command, sizeof(command), \"rm %%s\", file_name);\n"\
+	"\treturn !system(command);\n"\
+    "}\n"\
+    "bool rm_dir(char* dir_name){\n"\
+    "\tchar command[COMMAND_MAX_LEN];\n"\
+    "\tsnprintf(command, sizeof(command), \"rm -rf %%s\", dir_name);\n"\
+    "\treturn !system(command);\n"\
+    "}\n"\
+    "bool ensure_dir(char* path){\n"\
     "\tif (file_exists(path)) return true;\n"\
     "\tchar command[COMMAND_MAX_LEN];\n"\
     "\tsnprintf(command, sizeof(command), \"mkdir -p %%s\", path);\n"\
     "\treturn !system(command);\n"\
     "}\n"\
-    "bool copy_file(char *src, char *dest){\n"\
+    "bool copy_file(char* src, char* dest){\n"\
     "\tchar command[COMMAND_MAX_LEN];\n"\
     "\tsnprintf(command, sizeof(command), \"cp %%s %%s\", src, dest);\n"\
     "\treturn !system(command);\n"\
     "}\n"\
-    "static inline time_t get_mtime(char *filename) {\n"\
+    "static inline time_t get_mtime(char* filename) {\n"\
     "\tstruct stat st;\n"\
     "\tif (stat(filename, &st) == -1) return 0;\n"\
     "\treturn st.st_mtime;\n"\
     "}\n"\
-    "bool is_newer(char *file1, char *file2){return get_mtime(file1)>get_mtime(file2);}\n"\
-    "bool run_command(char *command){return !system(command);}\n"\
-    "bool compile_if_changed(char *src, char *bin, char *command){\n"\
+    "bool is_newer(char* file1, char* file2){return get_mtime(file1)>get_mtime(file2);}\n"\
+    "bool run_command(char* command){return !system(command);}\n"\
+    "bool compile_if_changed(char* src, char* bin, char* command){\n"\
     "\tif (!is_newer(src, bin)) return true;\n"\
     "\treturn !system(command);\n"\
     "}\n"\
-    "bool fetch_to_lib(char *url, char *file_name){\n"\
+    "bool fetch_to_lib(char* file_name, char* url){\n"\
     "\tchar command[COMMAND_MAX_LEN];\n"\
     "\tsnprintf(command, sizeof(command), \"wget -q --show-progress %%s -O lib/%%s\", url, file_name);\n"\
     "\treturn !system(command);\n"\
     "}\n"\
-    "bool fetch_to_lib_if_missing(char *url, char *file_name){\n"\
+    "bool fetch_to_lib_if_missing(char* file_name, char* url){\n"\
     "\tchar full_path[COMMAND_MAX_LEN];\n"\
     "\tsnprintf(full_path, sizeof(full_path), \"lib/%%s\", file_name);\n"\
     "\tif(file_exists(full_path)) return true;\n"\
@@ -89,7 +109,8 @@
     "\tsnprintf(command, sizeof(command), \"wget -q --show-progress %%s -O lib/%%s\", url, file_name);\n"\
     "\treturn !system(command);\n"\
     "}\n"\
-    "void print_info(char *message){printf(\"[BUILD] %%s\\n\", message);}"
+    "void print_info(char* message){printf(\"[INFO] %%s\\n\", message);}\n"\
+    "void print_error(char* message){printf(\"\\x1B[31;1;4m[ERROR] %%s\\n\\x1B[0m\", message);}\n"
 
 #define BUILD_C_CONTENT \
     "#include \"build.h\"\n"\
