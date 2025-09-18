@@ -1,5 +1,5 @@
 # NCT (NiCeTy)
-NCT is a lightweight command-line project manager for C projects. It helps you quickly initialize, build, and test C projects with a simple configuration system and powerful build utilities.
+NCT is a lightweight command-line project manager for C projects. It helps you quickly initialize, build, and test C projects with a configuration system and build utilities.
 
 ## Features
 - Quick project initialization with boilerplate files & directories
@@ -7,9 +7,7 @@ NCT is a lightweight command-line project manager for C projects. It helps you q
 - Built-in build utilities via build.h including:
     - Dependency fetching from URLs
     - Incremental compilation (compile only when source changes)
-    - File operations (copy, exists, directory creation)
-- Automatic recompilation only rebuilds when source files change
-- Simple configuration via `.nct/.nct` config file
+    - File operations (copy, exists, deletion, directory creation etc.)
 - Command to initiate tests for the project
 - Argument passing to build and test commands
 
@@ -54,4 +52,5 @@ Compiles and runs `test.c`. Automatically recompiles if the test source was modi
 ```
 
 ## Todo
+
 - Add windows support
