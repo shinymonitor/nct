@@ -10,12 +10,27 @@
 #define CONFIG_MAX_LEN 256
 #define COMMAND_MAX_LEN 512
 
+#define VERSION "1.0"
+
+#define ASCII_LOGO \
+    "   _                                 ___\n"\
+    "° /_) °         ___ ___     _____   (   )\n"\
+    " // . ___ _    (   __  \\   /  _  \\   | |__\n"\
+    "|| °/. ° |\\\\    | /  \\ |  |  / \\ |  (   __)\n"\
+    "\\ \\/ .o  / \\|   | |  | |  |  | |_|   | | ___\n"\
+    " \\  \\   /   \\   | |  | |  |  |  _    | |(   )\n"\
+    " \\\\___\\/     |  | |  | |  |  | | |   | | | |\n"\
+    "  \\          /  | |  | |  |  \\_/ |   \\ \\_/ /\n"\
+    "   \\        /  (___)(___)  \\_____/    \\___/\n"\
+    "    \\____ /\n"
+
 #define HELP_MESSAGE \
     "Usage: nct [COMMAND] [ARGS]\n\n"\
     "Commands:\n"\
     "\tinit    [NAME] Initializes a project with a given name and make .nct/.nct\n"\
     "\tbuild   [ARGS] Builds project using build.c\n"\
     "\ttest    [ARGS] Build and run test.c\n"\
+    "\tversion Print logo ascii art and version number\n"\
     "\thelp    Print this message\n"
 
 #define CONFIG_FILE_CONTENT \
@@ -166,6 +181,7 @@ static inline bool get_config(FILE* file, const char* config_name, char* config_
 
 int main(int argc, char** argv){
     if(argc==1) {printf("No command was given. Run 'nct help' for more information.\n"); return 1;}
+    else if(strcmp(argv[1], "version")==0) {printf(ASCII_LOGO"\n                NCT VERSION: "VERSION"\n\n"); return 0;}
     else if(strcmp(argv[1], "help")==0) {printf(HELP_MESSAGE); return 0;}
     else if(strcmp(argv[1], "init")==0) {
         if(argc==2) {printf("No project name was given. Run 'nct help' for more information.\n"); return 1;}
