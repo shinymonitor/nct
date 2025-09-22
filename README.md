@@ -1,7 +1,7 @@
 # NCT
 
 <p align="center">
-    <img src="assets/nct_logo.png" width="200"/>
+    <img src="assets/LOGO.png" width="200"/>
 <p>
 
 NCT (NiCeTy or Nice C Tea) is a lightweight command-line project manager for C projects. It helps you quickly initialize, build, and test C projects with a configuration system and build utilities.
