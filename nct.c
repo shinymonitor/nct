@@ -10,7 +10,7 @@
 #define CONFIG_MAX_LEN 256
 #define COMMAND_MAX_LEN 512
 
-#define VERSION "1.0"
+#define VERSION "2.0"
 
 #define ASCII_LOGO \
     "   _                                 ___\n"\
@@ -58,7 +58,6 @@
     "bool file_exists(char* file_name);\n"\
     "bool rm_file(char* file_name);\n"\
     "bool rm_dir(char* dir_name);\n"\
-    "bool ensure_dir(char* path);\n"\
     "bool copy_file(char* src, char* dest);\n"\
     "bool is_newer(char* file1, char* file2);\n"\
     "bool compile_if_changed(char* src, char* bin, char* command);\n"\
@@ -67,6 +66,21 @@
     "bool fetch_to_lib_if_missing(char* file_name, char* url);\n"\
     "void print_info(char* message);\n"\
     "void print_error(char* message);\n"\
+    "//============================================\n"\
+    "#ifdef _WIN32\n"\
+    "\t#include <direct.h>\n"\
+    "\t#define MKDIR(path) _mkdir(path)\n"\
+    "\t#define RM_CMD \"del /Q %%s\"\n"\
+    "\t#define RMDIR_CMD \"rmdir /S /Q %%s\"\n"\
+    "\t#define CP_CMD \"copy /Y %%s %%s\"\n"\
+    "\t#define FETCH_CMD \"curl -L -o lib\\\\%%s %%s\"\n"\
+    "#else\n"\
+    "\t#define MKDIR(path) mkdir(path, 0755)\n"\
+    "\t#define RM_CMD \"rm %%s\"\n"\
+    "\t#define RMDIR_CMD \"rm -rf %%s\"\n"\
+    "\t#define CP_CMD \"cp %%s %%s\"\n"\
+    "\t#define FETCH_CMD \"wget -q --show-progress %%s -O lib/%%s\"\n"\
+    "#endif\n"\
     "//============================================\n"\
     "#define COMMAND_MAX_LEN 512\n"\
     "bool argument_is(int i, char* argument, int argc, char** argv){\n"\
@@ -81,23 +95,17 @@
     "bool rm_file(char* file_name){\n"\
 	"\tif (!file_exists(file_name)) return false;\n"\
 	"\tchar command[COMMAND_MAX_LEN];\n"\
-	"\tsnprintf(command, sizeof(command), \"rm %%s\", file_name);\n"\
+	"\tsnprintf(command, sizeof(command), RM_CMD, file_name);\n"\
 	"\treturn !system(command);\n"\
     "}\n"\
     "bool rm_dir(char* dir_name){\n"\
     "\tchar command[COMMAND_MAX_LEN];\n"\
-    "\tsnprintf(command, sizeof(command), \"rm -rf %%s\", dir_name);\n"\
-    "\treturn !system(command);\n"\
-    "}\n"\
-    "bool ensure_dir(char* path){\n"\
-    "\tif (file_exists(path)) return true;\n"\
-    "\tchar command[COMMAND_MAX_LEN];\n"\
-    "\tsnprintf(command, sizeof(command), \"mkdir -p %%s\", path);\n"\
+    "\tsnprintf(command, sizeof(command), RMDIR_CMD, dir_name);\n"\
     "\treturn !system(command);\n"\
     "}\n"\
     "bool copy_file(char* src, char* dest){\n"\
     "\tchar command[COMMAND_MAX_LEN];\n"\
-    "\tsnprintf(command, sizeof(command), \"cp %%s %%s\", src, dest);\n"\
+    "\tsnprintf(command, sizeof(command), CP_CMD, src, dest);\n"\
     "\treturn !system(command);\n"\
     "}\n"\
     "static inline time_t get_mtime(char* filename) {\n"\
@@ -113,7 +121,7 @@
     "}\n"\
     "bool fetch_to_lib(char* file_name, char* url){\n"\
     "\tchar command[COMMAND_MAX_LEN];\n"\
-    "\tsnprintf(command, sizeof(command), \"wget -q --show-progress %%s -O lib/%%s\", url, file_name);\n"\
+    "\tsnprintf(command, sizeof(command), FETCH_CMD, url, file_name);\n"\
     "\treturn !system(command);\n"\
     "}\n"\
     "bool fetch_to_lib_if_missing(char* file_name, char* url){\n"\
@@ -121,7 +129,7 @@
     "\tsnprintf(full_path, sizeof(full_path), \"lib/%%s\", file_name);\n"\
     "\tif(file_exists(full_path)) return true;\n"\
     "\tchar command[COMMAND_MAX_LEN];\n"\
-    "\tsnprintf(command, sizeof(command), \"wget -q --show-progress %%s -O lib/%%s\", url, file_name);\n"\
+    "\tsnprintf(command, sizeof(command), FETCH_CMD, url, file_name);\n"\
     "\treturn !system(command);\n"\
     "}\n"\
     "void print_info(char* message){printf(\"[INFO] %%s\\n\", message);}\n"\
@@ -155,8 +163,14 @@ static inline bool file_exists(char *file_name){
     if ((file = fopen(file_name, "r"))) {fclose(file); return true;}
     return false;
 }
+#ifdef _WIN32
+    #include <direct.h>
+    #define MKDIR(path) _mkdir(path)
+#else
+    #define MKDIR(path) mkdir(path, 0755)
+#endif
 static inline bool mkdir_safe(const char *path) {
-    if (mkdir(path, 0755) == -1) {perror("mkdir"); return false;}
+    if (MKDIR(path) == -1) {perror("mkdir"); return false;}
     return true;
 }
 static inline bool get_config(FILE* file, const char* config_name, char* config_buffer){
