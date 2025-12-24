@@ -56,7 +56,7 @@
     "#include <time.h>\n"\
     "#include <string.h>\n"\
     "//============================================\n"\
-    "typedef struct {char* file_path; char* deps; char* command;} Maqe;\n\n"\
+    "typedef struct {char* target; char* deps; char* command;} Maqe;\n\n"\
     "bool argument_is(int i, char* argument, int argc, char** argv);\n"\
     "bool file_exists(char* file_path);\n"\
     "bool mkdir_if_not_exist(const char *path);\n"\
@@ -149,10 +149,10 @@
     "\twhile (!done) {\n"\
     "\t\tredo = false;\n"\
     "\t\tfor (size_t i = 0; i < maqes_len; ++i) {\n"\
-    "\t\t\tif (!maqes[i].file_path || !maqes[i].command) continue;\n"\
+    "\t\t\tif (!maqes[i].target || !maqes[i].command) continue;\n"\
     "\t\t\tchar* deps = maqes[i].deps;\n"\
     "\t\t\tif (!deps || deps[0] == '\\0') {\n"\
-    "\t\t\t\tRunResult result = run_command_if_dep_changed(maqes[i].file_path, \"\", maqes[i].command);\n"\
+    "\t\t\t\tRunResult result = run_command_if_dep_changed(maqes[i].target, \"\", maqes[i].command);\n"\
     "\t\t\t\tswitch (result) {\n"\
     "\t\t\t\t\tcase FAILED: return false;\n"\
     "\t\t\t\t\tcase SUCCESS: redo = true; break;\n"\
@@ -179,7 +179,7 @@
     "\t\t\t\t\tpos++;\n"\
     "\t\t\t\t}\n"\
     "\t\t\t\tdep_path_buffer[out_len] = '\\0';\n"\
-    "\t\t\t\tRunResult result = run_command_if_dep_changed(maqes[i].file_path, dep_path_buffer, maqes[i].command);\n"\
+    "\t\t\t\tRunResult result = run_command_if_dep_changed(maqes[i].target, dep_path_buffer, maqes[i].command);\n"\
     "\t\t\t\tswitch (result) {\n"\
     "\t\t\t\t\tcase FAILED: return false;\n"\
     "\t\t\t\t\tcase SUCCESS: redo = true; break;\n"\
@@ -220,9 +220,7 @@
     "int main(){\n"\
     "    //This is a makefile-like build system\n"\
     "    Maqe maqes[1]={0};\n"\
-    "    maqes[0].file_path=BIN;\n"\
-    "    maqes[0].deps=SRC;\n"\
-    "    maqes[0].command=CC\" \"SRC\" -o \"BIN\" \"LINK\" \" FLAGS;\n"\
+    "    maqes[0]=(Maqe){BIN, SRC, CC\" \"SRC\" -o \"BIN\" \"LINK\" \" FLAGS};\n"\
     "    run_maqe(maqes, sizeof(maqes)/sizeof(Maqe));\n"\
     "    //Alternatively, you can just run the command directly:\n"\
     "    //run_command(CC\" \"SRC\" -o \"BIN\" \"LINK\" \" FLAGS);\n"\
