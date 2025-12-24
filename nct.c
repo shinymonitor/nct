@@ -1,5 +1,6 @@
 #include <stdio.h>
 #include <stdlib.h>
+#include <errno.h>
 #include <string.h>
 #include <sys/stat.h>
 #include <time.h>
@@ -10,7 +11,7 @@
 #define CONFIG_MAX_LEN 256
 #define COMMAND_MAX_LEN 512
 
-#define VERSION "2.0"
+#define VERSION "2.1"
 
 #define ASCII_LOGO \
     "   _                                 ___\n"\
@@ -48,22 +49,27 @@
 
 #define BUILD_H_CONTENT \
     "#include <stdlib.h>\n"\
+    "#include <errno.h>\n"\
     "#include <stdio.h>\n"\
     "#include <stdbool.h>\n"\
     "#include <sys/stat.h>\n"\
     "#include <time.h>\n"\
     "#include <string.h>\n"\
     "//============================================\n"\
+    "typedef struct {char* file_path; char* deps; char* command;} Maqe;\n\n"\
     "bool argument_is(int i, char* argument, int argc, char** argv);\n"\
-    "bool file_exists(char* file_name);\n"\
-    "bool rm_file(char* file_name);\n"\
-    "bool rm_dir(char* dir_name);\n"\
-    "bool copy_file(char* src, char* dest);\n"\
-    "bool is_newer(char* file1, char* file2);\n"\
-    "bool compile_if_changed(char* src, char* bin, char* command);\n"\
+    "bool file_exists(char* file_path);\n"\
+    "bool mkdir_if_not_exist(const char *path);\n"\
+    "bool rm_file(char* file_path);\n"\
+    "bool rm_dir(char* dir_path);\n"\
+    "bool copy_file(char* src_path, char* dest_path);\n"\
+    "bool is_newer(char* new_path, char* old_path);\n\n"\
     "bool run_command(char* command);\n"\
+    "typedef enum {SKIPPED, FAILED, SUCCESS} RunResult;\n"\
+    "RunResult run_command_if_dep_changed(char* file_path, char* dep_path, char* command);\n"\
+    "bool run_maqe(Maqe* maqes, size_t maqes_len);\n\n"\
     "bool fetch_to_lib(char* file_name, char* url);\n"\
-    "bool fetch_to_lib_if_missing(char* file_name, char* url);\n"\
+    "bool fetch_to_lib_if_missing(char* file_name, char* url);\n\n"\
     "void print_info(char* message);\n"\
     "void print_error(char* message);\n"\
     "//============================================\n"\
@@ -87,37 +93,106 @@
 	"\tif (argc<i+1) return false;\n"\
 	"\treturn (strcmp(argv[i], argument)==0);\n"\
     "}\n"\
-    "bool file_exists(char* file_name){\n"\
+    "bool file_exists(char* file_path){\n"\
     "\tFILE *file;\n"\
-    "\tif ((file = fopen(file_name, \"r\"))) {fclose(file); return true;}\n"\
+    "\tif ((file = fopen(file_path, \"r\"))) {fclose(file); return true;}\n"\
     "\treturn false;\n"\
     "}\n"\
-    "bool rm_file(char* file_name){\n"\
-	"\tif (!file_exists(file_name)) return false;\n"\
+    "bool mkdir_if_not_exist(const char *path){\n"\
+    "\tif (MKDIR(path) != 0 || errno == EEXIST) return true;\n"\
+    "\treturn false;\n"\
+    "}\n"\
+    "bool rm_file(char* file_path){\n"\
+	"\tif (!file_exists(file_path)) return false;\n"\
 	"\tchar command[COMMAND_MAX_LEN];\n"\
-	"\tsnprintf(command, sizeof(command), RM_CMD, file_name);\n"\
+	"\tsnprintf(command, sizeof(command), RM_CMD, file_path);\n"\
 	"\treturn !system(command);\n"\
     "}\n"\
-    "bool rm_dir(char* dir_name){\n"\
+    "bool rm_dir(char* dir_path){\n"\
     "\tchar command[COMMAND_MAX_LEN];\n"\
-    "\tsnprintf(command, sizeof(command), RMDIR_CMD, dir_name);\n"\
+    "\tsnprintf(command, sizeof(command), RMDIR_CMD, dir_path);\n"\
     "\treturn !system(command);\n"\
     "}\n"\
-    "bool copy_file(char* src, char* dest){\n"\
+    "bool copy_file(char* src_path, char* dest_path){\n"\
     "\tchar command[COMMAND_MAX_LEN];\n"\
-    "\tsnprintf(command, sizeof(command), CP_CMD, src, dest);\n"\
+    "\tsnprintf(command, sizeof(command), CP_CMD, src_path, dest_path);\n"\
     "\treturn !system(command);\n"\
     "}\n"\
-    "static inline time_t get_mtime(char* filename) {\n"\
+    "static inline time_t get_mtime(char* file_path) {\n"\
     "\tstruct stat st;\n"\
-    "\tif (stat(filename, &st) == -1) return 0;\n"\
+    "\tif (stat(file_path, &st) == -1) return 0;\n"\
     "\treturn st.st_mtime;\n"\
     "}\n"\
-    "bool is_newer(char* file1, char* file2){return get_mtime(file1)>get_mtime(file2);}\n"\
-    "bool run_command(char* command){return !system(command);}\n"\
-    "bool compile_if_changed(char* src, char* bin, char* command){\n"\
-    "\tif (!is_newer(src, bin)) return true;\n"\
-    "\treturn !system(command);\n"\
+    "bool is_newer(char* new_path, char* old_path){\n"\
+    "\ttime_t new_mtime = get_mtime(new_path);\n"\
+    "\ttime_t old_mtime = get_mtime(old_path);\n"\
+    "\tif (new_mtime == 0 || old_mtime == 0) return true;\n"\
+    "\treturn new_mtime > old_mtime;\n"\
+    "}\n"\
+    "bool run_command(char* command){\n"\
+    "\tif (!system(command)) {printf(\"[BUILD] %%s\\n\", command); return true;}\n"\
+    "\tprintf(\"[BUILD] \\x1B[31;1;4m%%s\\x1B[0m\\n\", command);\n"\
+    "\treturn false;\n"\
+    "}\n"\
+    "RunResult run_command_if_dep_changed(char* file_path, char* dep_path, char* command){\n"\
+    "\tif (!file_exists(file_path)) {\n"\
+    "\t\tif (!dep_path || !file_exists(dep_path)) return SKIPPED;\n"\
+    "\t\treturn run_command(command) ? SUCCESS : FAILED;\n"\
+    "\t}\n"\
+    "\tif (!is_newer(dep_path, file_path)) return SKIPPED;\n"\
+    "\treturn run_command(command) ? SUCCESS : FAILED;\n"\
+    "}\n"\
+    "bool run_maqe(Maqe* maqes, size_t maqes_len){\n"\
+    "\tbool done = false;\n"\
+    "\tbool redo = false;\n"\
+    "\tchar dep_path_buffer[COMMAND_MAX_LEN];\n"\
+    "\twhile (!done) {\n"\
+    "\t\tredo = false;\n"\
+    "\t\tfor (size_t i = 0; i < maqes_len; ++i) {\n"\
+    "\t\t\tif (!maqes[i].file_path || !maqes[i].command) continue;\n"\
+    "\t\t\tchar* deps = maqes[i].deps;\n"\
+    "\t\t\tif (!deps || deps[0] == '\\0') {\n"\
+    "\t\t\t\tRunResult result = run_command_if_dep_changed(maqes[i].file_path, \"\", maqes[i].command);\n"\
+    "\t\t\t\tswitch (result) {\n"\
+    "\t\t\t\t\tcase FAILED: return false;\n"\
+    "\t\t\t\t\tcase SUCCESS: redo = true; break;\n"\
+    "\t\t\t\t\tdefault: break;\n"\
+    "\t\t\t\t}\n"\
+    "\t\t\t\tif (redo) break;\n"\
+    "\t\t\t\tcontinue;\n"\
+    "\t\t\t}\n"\
+    "\t\t\tsize_t dep_len = strlen(deps);\n"\
+    "\t\t\tsize_t pos = 0;\n"\
+    "\t\t\twhile (pos < dep_len) {\n"\
+    "\t\t\t\tsize_t out_len = 0;\n"\
+    "\t\t\t\twhile (pos < dep_len && deps[pos] == ' ') pos++;\n"\
+    "\t\t\t\tif (pos >= dep_len) break;\n"\
+    "\t\t\t\twhile (pos < dep_len && out_len < sizeof(dep_path_buffer) - 1) {\n"\
+    "\t\t\t\t\tchar c = deps[pos];\n"\
+    "\t\t\t\t\tif (c == '\\\\' && pos + 1 < dep_len && deps[pos+1] == ' ') {\n"\
+    "\t\t\t\t\t\tdep_path_buffer[out_len++] = ' ';\n"\
+    "\t\t\t\t\t\tpos += 2;\n"\
+    "\t\t\t\t\t\tcontinue;\n"\
+    "\t\t\t\t\t}\n"\
+    "\t\t\t\t\tif (c == ' ') { pos++; break; }\n"\
+    "\t\t\t\t\tdep_path_buffer[out_len++] = c;\n"\
+    "\t\t\t\t\tpos++;\n"\
+    "\t\t\t\t}\n"\
+    "\t\t\t\tdep_path_buffer[out_len] = '\\0';\n"\
+    "\t\t\t\tRunResult result = run_command_if_dep_changed(maqes[i].file_path, dep_path_buffer, maqes[i].command);\n"\
+    "\t\t\t\tswitch (result) {\n"\
+    "\t\t\t\t\tcase FAILED: return false;\n"\
+    "\t\t\t\t\tcase SUCCESS: redo = true; break;\n"\
+    "\t\t\t\t\tdefault: break;\n"\
+    "\t\t\t\t}\n"\
+    "\t\t\t\tif (redo) break;\n"\
+    "\t\t\t}\n"\
+    "\t\t\tif (redo) break;\n"\
+    "\t\t}\n"\
+    "\t\tif (redo) continue;\n"\
+    "\t\tdone = true;\n"\
+    "\t}\n"\
+    "\treturn true;\n"\
     "}\n"\
     "bool fetch_to_lib(char* file_name, char* url){\n"\
     "\tchar command[COMMAND_MAX_LEN];\n"\
@@ -132,17 +207,25 @@
     "\tsnprintf(command, sizeof(command), FETCH_CMD, url, file_name);\n"\
     "\treturn !system(command);\n"\
     "}\n"\
-    "void print_info(char* message){printf(\"[INFO] %%s\\n\", message);}\n"\
-    "void print_error(char* message){printf(\"\\x1B[31;1;4m[ERROR] %%s\\n\\x1B[0m\", message);}\n"
+    "void print_info(char* message){printf(\"[BUILD] [INFO] %%s\\n\", message);}\n"\
+    "void print_error(char* message){printf(\"[BUILD] \\x1B[31;1;4m[ERROR] %%s\\x1B[0m\\n\", message);}\n"
 
 #define BUILD_C_CONTENT \
     "#include \"build.h\"\n"\
-    "#define COMPILER \"gcc\"\n"\
+    "#define CC \"gcc\"\n"\
     "#define SRC \"src/main.c\"\n"\
     "#define BIN \"build/%s\"\n"\
-    "#define FLAGS \"-Wall -Wextra -Werror -O3\"\n\n"\
+    "#define LINK \"\"\n"\
+    "#define FLAGS \"-Wall -Wextra -Werror\"\n\n"\
     "int main(){\n"\
-    "    run_command(COMPILER\" \"SRC\" -o \"BIN\" \" FLAGS);\n"\
+    "    //This is a makefile-like build system\n"\
+    "    Maqe maqes[1]={0};\n"\
+    "    maqes[0].file_path=BIN;\n"\
+    "    maqes[0].deps=SRC;\n"\
+    "    maqes[0].command=CC\" \"SRC\" -o \"BIN\" \"LINK\" \" FLAGS;\n"\
+    "    run_maqe(maqes, sizeof(maqes)/sizeof(Maqe));\n"\
+    "    //Alternatively, you can just run the command directly:\n"\
+    "    //run_command(CC\" \"SRC\" -o \"BIN\" \"LINK\" \" FLAGS);\n"\
     "    return 0;\n"\
     "}\n"
 
@@ -170,8 +253,8 @@ static inline bool file_exists(char *file_name){
     #define MKDIR(path) mkdir(path, 0755)
 #endif
 static inline bool mkdir_safe(const char *path) {
-    if (MKDIR(path) == -1) {perror("mkdir"); return false;}
-    return true;
+    if (MKDIR(path) == 0 || errno == EEXIST) return true;
+    return false;
 }
 static inline bool get_config(FILE* file, const char* config_name, char* config_buffer){
     char line[CONFIG_MAX_LEN * 2];
@@ -211,85 +294,95 @@ int main(int argc, char** argv){
         snprintf(path, sizeof(path), "%s/src", argv[2]);
         if (!mkdir_safe(path)) return 1;
         snprintf(path, sizeof(path), "%s/.nct/.nct", argv[2]);
-        FILE *config_file = fopen(path, "w");
-        if (!config_file) { perror("fopen"); return 1; }
-        fprintf(config_file, CONFIG_FILE_CONTENT);
-        fclose(config_file);
+        if (!file_exists(path)) {
+            FILE *config_file = fopen(path, "w");
+            if (!config_file) { perror("fopen"); return 1; }
+            fprintf(config_file, CONFIG_FILE_CONTENT);
+            fclose(config_file);
+        }
         snprintf(path, sizeof(path), "%s/src/main.c", argv[2]);
-        FILE *mainc = fopen(path, "w");
-        if (!mainc) { perror("fopen main.c"); return 1; }
-        fprintf(mainc, MAIN_C_CONTENT);
-        fclose(mainc);
+        if(!file_exists(path)){
+            FILE *mainc = fopen(path, "w");
+            if (!mainc) { perror("fopen main.c"); return 1; }
+            fprintf(mainc, MAIN_C_CONTENT);
+            fclose(mainc);
+        }
         snprintf(path, sizeof(path), "%s/build.h", argv[2]);
-        FILE *buildh = fopen(path, "w");
-        if (!buildh) { perror("fopen build.h"); return 1; }
-        fprintf(buildh, BUILD_H_CONTENT);
-        fclose(buildh);
+        if(!file_exists(path)){
+            FILE *buildh = fopen(path, "w");
+            if (!buildh) { perror("fopen build.h"); return 1; }
+            fprintf(buildh, BUILD_H_CONTENT);
+            fclose(buildh);
+        }
         snprintf(path, sizeof(path), "%s/build.c", argv[2]);
-        FILE *buildc = fopen(path, "w");
-        if (!buildc) { perror("fopen build.c"); return 1; }
-        fprintf(buildc, BUILD_C_CONTENT, argv[2]);
-        fclose(buildc);
+        if(!file_exists(path)){
+            FILE *buildc = fopen(path, "w");
+            if (!buildc) { perror("fopen build.c"); return 1; }
+            fprintf(buildc, BUILD_C_CONTENT, argv[2]);
+            fclose(buildc);
+        }
         snprintf(path, sizeof(path), "%s/test.c", argv[2]);
-        FILE *testc = fopen(path, "w");
-        if (!testc) { perror("fopen test.c"); return 1; }
-        fprintf(testc, TEST_C_CONTENT);
-        fclose(testc);
+        if(!file_exists(path)){
+            FILE *testc = fopen(path, "w");
+            if (!testc) { perror("fopen test.c"); return 1; }
+            fprintf(testc, TEST_C_CONTENT);
+            fclose(testc);
+        }
         return 0;
     }
     else if(strcmp(argv[1], "test")==0) {
         FILE* config_file = fopen(".nct/.nct", "r");
-        if(!config_file) {printf("Couldn't open .nct/.nct. Make sure that a valid .nct/.nct exist or create one using \'nct init\'\n"); return 1;}
+        if(!config_file) {printf("[NCT] \x1B[31;1;4mCouldn't open .nct/.nct. Make sure that this is a valid nct project directory or create one using \'nct init\'\x1B[0m\n"); return 1;}
         char test_compile[CONFIG_MAX_LEN]={0};
         char test_binary[CONFIG_MAX_LEN]={0};
         if (!get_config(config_file, "test_compile", test_compile)) {
-            printf("test_compile configuration not found\n");
+            printf("[NCT] \x1B[31;1;4mtest_compile configuration not found in .nct/.nct\x1B[0m\n");
             fclose(config_file);
             return 1;
         }
         if (!get_config(config_file, "test_binary", test_binary)) {
-            printf("test_binary configuration not found\n");
+            printf("[NCT] \x1B[31;1;4mtest_binary configuration not found in .nct/.nct\x1B[0m\n");
             fclose(config_file);
             return 1;
         }
         fclose(config_file);
-        if (!file_exists(test_binary)) {if(system(test_compile)) {printf("Couldn't run test compile command: %s\n", test_compile); return 1;}}
-        else if (get_mtime("test.c")>get_mtime(test_binary)) if(system(test_compile)) {printf("Couldn't run test compile command: %s\n", test_compile); return 1;}
+        if (!file_exists(test_binary)) {if(system(test_compile)) {printf("[NCT] \x1B[31;1;4mCouldn't run test compile command: %s\x1B[0m\n", test_compile); return 1;}}
+        else if (get_mtime("test.c")>get_mtime(test_binary)) if(system(test_compile)) {printf("[NCT] \x1B[31;1;4mCouldn't run test compile command: %s\x1B[0m\n", test_compile); return 1;}
         char run_test_command[COMMAND_MAX_LEN];
         snprintf(run_test_command, sizeof(run_test_command), "%s", test_binary);
         for(int i=2; i<argc; ++i) {
-            if (strlen(run_test_command)+strlen(argv[i])+1>COMMAND_MAX_LEN) {printf("Too many arguments and/or command too long.\n"); return 1;}
+            if (strlen(run_test_command)+strlen(argv[i])+1>COMMAND_MAX_LEN) {printf("[NCT] \x1B[31;1;4mToo many arguments and/or command too long.\x1B[0m\n"); return 1;}
             strcat(run_test_command, " ");
             strcat(run_test_command, argv[i]);
         }
-        if(system(run_test_command)) {printf("Test failed or returned non-zero exit code\n"); return 1;}
+        if(system(run_test_command)) {printf("[NCT] Test failed or returned non-zero exit code\n"); return 1;}
     }
     else if(strcmp(argv[1], "build")==0) {
         FILE* config_file = fopen(".nct/.nct", "r");
-        if(!config_file) {printf("Couldn't open .nct/.nct. Make sure that a valid .nct/.nct exist or create one using \'nct init\'\n"); return 1;}
+        if(!config_file) {printf("[NCT] \x1B[31;1;4mCouldn't open .nct/.nct. Make sure that this is a valid nct project directory or create one using \'nct init\'\x1B[0m\n"); return 1;}
         char build_compile[CONFIG_MAX_LEN]={0};
         char build_binary[CONFIG_MAX_LEN]={0};
         if (!get_config(config_file, "build_compile", build_compile)) {
-            printf("build_compile configuration not found\n");
+            printf("[NCT] \x1B[31;1;4mbuild_compile configuration not found\x1B[0m\n");
             fclose(config_file);
             return 1;
         }
         if (!get_config(config_file, "build_binary", build_binary)) {
-            printf("build_binary configuration not found\n");
+            printf("[NCT] \x1B[31;1;4mbuild_binary configuration not found\x1B[0m\n");
             fclose(config_file);
             return 1;
         }
         fclose(config_file);
-        if (!file_exists(build_binary)) {if(system(build_compile)) {printf("Couldn't run build compile command: %s\n", build_compile); return 1;}}
-        else if (get_mtime("build.c")>get_mtime(build_binary)) if(system(build_compile)) {printf("Couldn't run build compile command: %s\n", build_compile); return 1;}
+        if (!file_exists(build_binary)) {if(system(build_compile)) {printf("[NCT] \x1B[31;1;4mCouldn't run build compile command: %s\x1B[0m\n", build_compile); return 1;}}
+        else if (get_mtime("build.c")>get_mtime(build_binary)) if(system(build_compile)) {printf("[NCT] \x1B[31;1;4mCouldn't run build compile command: %s\x1B[0m\n", build_compile); return 1;}
         char run_build_command[COMMAND_MAX_LEN];
         snprintf(run_build_command, sizeof(run_build_command), "%s", build_binary);
         for(int i=2; i<argc; ++i) {
-            if (strlen(run_build_command)+strlen(argv[i])+1>COMMAND_MAX_LEN) {printf("Too many arguments and/or command too long.\n"); return 1;}
+            if (strlen(run_build_command)+strlen(argv[i])+1>COMMAND_MAX_LEN) {printf("[NCT] \x1B[31;1;4mToo many arguments and/or command too long.\x1B[0m\n"); return 1;}
             strcat(run_build_command, " ");
             strcat(run_build_command, argv[i]);
         }
-        if(system(run_build_command)) {printf("Build failed or returned non-zero exit code\n"); return 1;}
+        if(system(run_build_command)) {printf("[NCT] Build failed or returned non-zero exit code\n"); return 1;}
     }
     else {printf("Unknown command was given. Run 'nct help' for more information.\n"); return 1;}
     return 0;
