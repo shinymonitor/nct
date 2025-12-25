@@ -11,7 +11,7 @@
 #define CONFIG_MAX_LEN 256
 #define COMMAND_MAX_LEN 512
 
-#define VERSION "2.1"
+#define VERSION "2.2"
 
 #define ASCII_LOGO \
     "   _                                 ___\n"\
@@ -56,7 +56,8 @@
     "#include <time.h>\n"\
     "#include <string.h>\n"\
     "//============================================\n"\
-    "typedef struct {char* target; char* deps; char* command;} Maqe;\n\n"\
+    "typedef struct {char** targets; size_t targets_count; char** dependencies; size_t dependencies_count; char** commands; size_t commands_count;} Maqe;\n"\
+    "//============================================\n"\
     "bool argument_is(int i, char* argument, int argc, char** argv);\n"\
     "bool file_exists(char* file_path);\n"\
     "bool mkdir_if_not_exist(const char *path);\n"\
@@ -65,22 +66,32 @@
     "bool copy_file(char* src_path, char* dest_path);\n"\
     "bool is_newer(char* new_path, char* old_path);\n\n"\
     "bool run_command(char* command);\n"\
-    "typedef enum {SKIPPED, FAILED, SUCCESS} RunResult;\n"\
-    "RunResult run_command_if_dep_changed(char* file_path, char* dep_path, char* command);\n"\
     "bool run_maqe(Maqe* maqes, size_t maqes_len);\n\n"\
     "bool fetch_to_lib(char* file_name, char* url);\n"\
     "bool fetch_to_lib_if_missing(char* file_name, char* url);\n\n"\
     "void print_info(char* message);\n"\
     "void print_error(char* message);\n"\
     "//============================================\n"\
+    "#define MAX_MAQES 100\n"\
+    "#define Maqe_Init() Maqe maqes[MAX_MAQES]={0}; size_t count=0; size_t temp=0\n\n"\
+    "Maqe_Init();\n\n"\
+    "#define S(...) (char*[]){__VA_ARGS__}, (sizeof((char*[]){__VA_ARGS__})/sizeof(char*))\n"\
+    "#define Maqe_Rule(...) maqes[count]=(Maqe){__VA_ARGS__}; ++count\n"\
+    "#define Maqe_Run() run_maqe(maqes, count)\n\n"\
+    "#define Maqe_Reset() temp=sizeof(maqes); memset(maqes, 0, temp); count=0\n"\
+    "//============================================\n"\
     "#ifdef _WIN32\n"\
     "\t#include <direct.h>\n"\
+    "\t#define NL \"\\r\\n\"\n"\
+    "\t#define PS \"\\\"\n"\
     "\t#define MKDIR(path) _mkdir(path)\n"\
     "\t#define RM_CMD \"del /Q %%s\"\n"\
     "\t#define RMDIR_CMD \"rmdir /S /Q %%s\"\n"\
     "\t#define CP_CMD \"copy /Y %%s %%s\"\n"\
     "\t#define FETCH_CMD \"curl -L -o lib\\\\%%s %%s\"\n"\
     "#else\n"\
+    "\t#define NL \"\\n\"\n"\
+    "\t#define PS \"/\"\n"\
     "\t#define MKDIR(path) mkdir(path, 0755)\n"\
     "\t#define RM_CMD \"rm %%s\"\n"\
     "\t#define RMDIR_CMD \"rm -rf %%s\"\n"\
@@ -134,63 +145,32 @@
     "\tprintf(\"[BUILD] \\x1B[31;1;4m%%s\\x1B[0m\\n\", command);\n"\
     "\treturn false;\n"\
     "}\n"\
-    "RunResult run_command_if_dep_changed(char* file_path, char* dep_path, char* command){\n"\
-    "\tif (!file_exists(file_path)) {\n"\
-    "\t\tif (!dep_path || !file_exists(dep_path)) return SKIPPED;\n"\
-    "\t\treturn run_command(command) ? SUCCESS : FAILED;\n"\
-    "\t}\n"\
-    "\tif (!is_newer(dep_path, file_path)) return SKIPPED;\n"\
-    "\treturn run_command(command) ? SUCCESS : FAILED;\n"\
-    "}\n"\
     "bool run_maqe(Maqe* maqes, size_t maqes_len){\n"\
+    "\tstatic bool to_run[MAX_MAQES];\n"\
     "\tbool done = false;\n"\
-    "\tbool redo = false;\n"\
-    "\tchar dep_path_buffer[COMMAND_MAX_LEN];\n"\
     "\twhile (!done) {\n"\
-    "\t\tredo = false;\n"\
+    "\t\tsize_t run_count = 0;\n"\
+    "\t\tmemset(to_run, false, maqes_len);\n"\
     "\t\tfor (size_t i = 0; i < maqes_len; ++i) {\n"\
-    "\t\t\tif (!maqes[i].target || !maqes[i].command) continue;\n"\
-    "\t\t\tchar* deps = maqes[i].deps;\n"\
-    "\t\t\tif (!deps || deps[0] == '\\0') {\n"\
-    "\t\t\t\tRunResult result = run_command_if_dep_changed(maqes[i].target, \"\", maqes[i].command);\n"\
-    "\t\t\t\tswitch (result) {\n"\
-    "\t\t\t\t\tcase FAILED: return false;\n"\
-    "\t\t\t\t\tcase SUCCESS: redo = true; break;\n"\
-    "\t\t\t\t\tdefault: break;\n"\
+    "\t\t\tbool runnable = false;\n"\
+    "\t\t\tfor (size_t j = 0; j < maqes[i].targets_count; ++j){\n"\
+    "\t\t\t\tif (maqes[i].dependencies_count == 0) { runnable = true; break; }\n"\
+    "\t\t\t\tfor (size_t k = 0; k < maqes[i].dependencies_count; ++k) {\n"\
+    "\t\t\t\t\tif (!file_exists(maqes[i].dependencies[k])) {runnable = false; break;}\n"\
+    "\t\t\t\t\tif (!file_exists(maqes[i].targets[j]) || is_newer(maqes[i].dependencies[k], maqes[i].targets[j])) {runnable = true;}\n"\
     "\t\t\t\t}\n"\
-    "\t\t\t\tif (redo) break;\n"\
-    "\t\t\t\tcontinue;\n"\
+    "\t\t\t\tif (!runnable) break;\n"\
     "\t\t\t}\n"\
-    "\t\t\tsize_t dep_len = strlen(deps);\n"\
-    "\t\t\tsize_t pos = 0;\n"\
-    "\t\t\twhile (pos < dep_len) {\n"\
-    "\t\t\t\tsize_t out_len = 0;\n"\
-    "\t\t\t\twhile (pos < dep_len && deps[pos] == ' ') pos++;\n"\
-    "\t\t\t\tif (pos >= dep_len) break;\n"\
-    "\t\t\t\twhile (pos < dep_len && out_len < sizeof(dep_path_buffer) - 1) {\n"\
-    "\t\t\t\t\tchar c = deps[pos];\n"\
-    "\t\t\t\t\tif (c == '\\\\' && pos + 1 < dep_len && deps[pos+1] == ' ') {\n"\
-    "\t\t\t\t\t\tdep_path_buffer[out_len++] = ' ';\n"\
-    "\t\t\t\t\t\tpos += 2;\n"\
-    "\t\t\t\t\t\tcontinue;\n"\
-    "\t\t\t\t\t}\n"\
-    "\t\t\t\t\tif (c == ' ') { pos++; break; }\n"\
-    "\t\t\t\t\tdep_path_buffer[out_len++] = c;\n"\
-    "\t\t\t\t\tpos++;\n"\
-    "\t\t\t\t}\n"\
-    "\t\t\t\tdep_path_buffer[out_len] = '\\0';\n"\
-    "\t\t\t\tRunResult result = run_command_if_dep_changed(maqes[i].target, dep_path_buffer, maqes[i].command);\n"\
-    "\t\t\t\tswitch (result) {\n"\
-    "\t\t\t\t\tcase FAILED: return false;\n"\
-    "\t\t\t\t\tcase SUCCESS: redo = true; break;\n"\
-    "\t\t\t\t\tdefault: break;\n"\
-    "\t\t\t\t}\n"\
-    "\t\t\t\tif (redo) break;\n"\
-    "\t\t\t}\n"\
-    "\t\t\tif (redo) break;\n"\
+    "\t\t\tto_run[i] = runnable;\n"\
+    "\t\t\tif (runnable) run_count++;\n"\
     "\t\t}\n"\
-    "\t\tif (redo) continue;\n"\
-    "\t\tdone = true;\n"\
+    "\t\tif (run_count == 0) { done = true; break; }\n"\
+    "\t\tfor (size_t i = 0; i < maqes_len; ++i) {\n"\
+    "\t\t\tif (!to_run[i]) continue;\n"\
+    "\t\t\tfor (size_t l = 0; l < maqes[i].commands_count; ++l) {\n"\
+    "\t\t\t\tif (!run_command(maqes[i].commands[l])) return false;\n"\
+    "\t\t\t}\n"\
+    "\t\t}\n"\
     "\t}\n"\
     "\treturn true;\n"\
     "}\n"\
@@ -211,19 +191,21 @@
     "void print_error(char* message){printf(\"[BUILD] \\x1B[31;1;4m[ERROR] %%s\\x1B[0m\\n\", message);}\n"
 
 #define BUILD_C_CONTENT \
+    "#define PROJECT \"%s\"\n\n"\
     "#include \"build.h\"\n"\
     "#define CC \"gcc\"\n"\
-    "#define SRC \"src/main.c\"\n"\
-    "#define BIN \"build/%s\"\n"\
     "#define LINK \"\"\n"\
     "#define FLAGS \"-Wall -Wextra -Werror\"\n\n"\
     "int main(){\n"\
-    "    //This is a makefile-like build system\n"\
-    "    Maqe maqes[1]={0};\n"\
-    "    maqes[0]=(Maqe){BIN, SRC, CC\" \"SRC\" -o \"BIN\" \"LINK\" \" FLAGS};\n"\
-    "    run_maqe(maqes, sizeof(maqes)/sizeof(Maqe));\n"\
-    "    //Alternatively, you can just run the command directly:\n"\
-    "    //run_command(CC\" \"SRC\" -o \"BIN\" \"LINK\" \" FLAGS);\n"\
+    "    //This is a makefile-like build system with incremental builds\n"\
+    "    Maqe_Rule(\n"\
+    "        S(\"build/\"PROJECT),\n"\
+    "        S(\"src/main.c\"),\n"\
+    "        S(CC\" -o build/\"PROJECT\" src/main.c \"LINK\" \"FLAGS)\n"\
+    "    );\n"\
+    "    Maqe_Run();\n"\
+    "    //Alternatively you can run commands manually\n"\
+    "    //run_command(CC\" -o build/\"PROJECT\" src/main.c \"LINK\" \"FLAGS);\n"\
     "    return 0;\n"\
     "}\n"
 
