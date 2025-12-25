@@ -83,7 +83,7 @@
     "#ifdef _WIN32\n"\
     "\t#include <direct.h>\n"\
     "\t#define NL \"\\r\\n\"\n"\
-    "\t#define PS \"\\\"\n"\
+    "\t#define PS \"\\\\\"\n"\
     "\t#define MKDIR(path) _mkdir(path)\n"\
     "\t#define RM_CMD \"del /Q %%s\"\n"\
     "\t#define RMDIR_CMD \"rmdir /S /Q %%s\"\n"\
