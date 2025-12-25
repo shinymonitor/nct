@@ -56,6 +56,9 @@
     "#include <time.h>\n"\
     "#include <string.h>\n"\
     "//============================================\n"\
+    "#define MAX_MAQES 100\n"\
+    "#define COMMAND_MAX_LEN 4096\n"\
+    "//============================================\n"\
     "typedef struct {char** targets; size_t targets_count; char** dependencies; size_t dependencies_count; char** commands; size_t commands_count;} Maqe;\n"\
     "//============================================\n"\
     "bool argument_is(int i, char* argument, int argc, char** argv);\n"\
@@ -72,7 +75,6 @@
     "void print_info(char* message);\n"\
     "void print_error(char* message);\n"\
     "//============================================\n"\
-    "#define MAX_MAQES 100\n"\
     "#define Maqe_Init() Maqe maqes[MAX_MAQES]={0}; size_t count=0; size_t temp=0\n\n"\
     "Maqe_Init();\n\n"\
     "#define S(...) (char*[]){__VA_ARGS__}, (sizeof((char*[]){__VA_ARGS__})/sizeof(char*))\n"\
@@ -99,7 +101,7 @@
     "\t#define FETCH_CMD \"wget -q --show-progress %%s -O lib/%%s\"\n"\
     "#endif\n"\
     "//============================================\n"\
-    "#define COMMAND_MAX_LEN 512\n"\
+    "static char command[COMMAND_MAX_LEN];\n"\
     "bool argument_is(int i, char* argument, int argc, char** argv){\n"\
 	"\tif (argc<i+1) return false;\n"\
 	"\treturn (strcmp(argv[i], argument)==0);\n"\
@@ -115,17 +117,14 @@
     "}\n"\
     "bool rm_file(char* file_path){\n"\
 	"\tif (!file_exists(file_path)) return false;\n"\
-	"\tchar command[COMMAND_MAX_LEN];\n"\
 	"\tsnprintf(command, sizeof(command), RM_CMD, file_path);\n"\
 	"\treturn !system(command);\n"\
     "}\n"\
     "bool rm_dir(char* dir_path){\n"\
-    "\tchar command[COMMAND_MAX_LEN];\n"\
     "\tsnprintf(command, sizeof(command), RMDIR_CMD, dir_path);\n"\
     "\treturn !system(command);\n"\
     "}\n"\
     "bool copy_file(char* src_path, char* dest_path){\n"\
-    "\tchar command[COMMAND_MAX_LEN];\n"\
     "\tsnprintf(command, sizeof(command), CP_CMD, src_path, dest_path);\n"\
     "\treturn !system(command);\n"\
     "}\n"\
@@ -175,15 +174,12 @@
     "\treturn true;\n"\
     "}\n"\
     "bool fetch_to_lib(char* file_name, char* url){\n"\
-    "\tchar command[COMMAND_MAX_LEN];\n"\
     "\tsnprintf(command, sizeof(command), FETCH_CMD, url, file_name);\n"\
     "\treturn !system(command);\n"\
     "}\n"\
     "bool fetch_to_lib_if_missing(char* file_name, char* url){\n"\
-    "\tchar full_path[COMMAND_MAX_LEN];\n"\
-    "\tsnprintf(full_path, sizeof(full_path), \"lib/%%s\", file_name);\n"\
-    "\tif(file_exists(full_path)) return true;\n"\
-    "\tchar command[COMMAND_MAX_LEN];\n"\
+    "\tsnprintf(command, sizeof(command), \"lib/%%s\", file_name);\n"\
+    "\tif(file_exists(command)) return true;\n"\
     "\tsnprintf(command, sizeof(command), FETCH_CMD, url, file_name);\n"\
     "\treturn !system(command);\n"\
     "}\n"\
