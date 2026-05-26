@@ -8,7 +8,7 @@
 
 #define COMMAND_MAX_LEN 512
 
-#define VERSION "3.0"
+#define VERSION "3.1"
 
 #define ASCII_LOGO \
     "   _                                 ___\n"\

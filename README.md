@@ -8,7 +8,7 @@ NCT (NiCeTy or Nice C Tea) is a lightweight command-line project manager for C p
 ## Features
 - Quick project initialization with boilerplate files & directories
 - Intuitive C-based build recipes that helps you write your build logic in C, not complex DSLs or shell scripts
-- A built-in build.h provides dependency fetching, incremental builds, file operations, make-like build system
+- A built-in build.h provides dependency fetching, incremental builds, file operations, make-like build system with dependency scanning
 - Cross platform (Windows and Unix)
 - Automatic recompilation of build recipe
 - Argument passing to build and test commands
@@ -22,7 +22,7 @@ NCT is a project manager, not a build system. Its goal is to provide a simple, s
 - Convenience: It provides a full workflow, from project initialization with nct init to a built-in utility library (build.h).
 - Cross Platform: make is not a standard part of Windows development. NCT provides a consistent command-line experience on any platform.
 - Flexibility: While NCT provides build.h as a starting point, your build script is just C. You have the full power of the language and are free to use any library you want, including more advanced build systems like [nob.h](https://github.com/tsoding/nob.h). The .nct config files allow you to integrate any toolchain or workflow.
-- Familiar, Make-like Rules: Use the familiar and powerful rules to define your build graph.
+- Familiar Make-like Rules: Use the familiar rules to define your build graph.
 
 NCT's purpose is to bring the simple "one command" experience to the C ecosystem without sacrificing power or flexibility.
 

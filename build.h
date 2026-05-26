@@ -235,67 +235,6 @@ CONSTRUCT_DEF void CONSTRUCT_fprint_log(const char* file_path, CONSTRUCT_LogType
 }
 
 //================================================================
-//SECTION: File Handling
-//================================================================
-
-CONSTRUCT_DEF bool CONSTRUCT_file_exists(char* file_path){FILE* file; if ((file = fopen(file_path, "r"))) {fclose(file); return true;} return false;}
-CONSTRUCT_DEF time_t CONSTRUCT_get_mtime(char* file_path) {struct stat st; if (stat(file_path, &st) == -1) return 0; return st.st_mtime;}
-CONSTRUCT_DEF bool CONSTRUCT_is_newer(char* new_path, char* old_path){
-	time_t new_mtime = CONSTRUCT_get_mtime(new_path);
-	time_t old_mtime = CONSTRUCT_get_mtime(old_path);
-	if (new_mtime == 0 || old_mtime == 0) return true;
-	return new_mtime > old_mtime;
-}
-CONSTRUCT_DEF const char* CONSTRUCT_path_basename(const char* path){const char* p = strrchr(path, CONSTRUCT_PS_CHR); return p ? p + 1 : path;}
-typedef struct {uint8_t* bytes; size_t bytes_count;} CONSTRUCT_FileBytes;
-CONSTRUCT_DEF bool CONSTRUCT_read_entire_file(const char* file_path, CONSTRUCT_FileBytes* file_bytes) {
-    FILE* file_handle = fopen(file_path, "rb");
-    if (file_handle == NULL) return false;
-    if(fseek(file_handle, 0, SEEK_END)!=0) {fclose(file_handle); return false;}
-    int64_t file_size = ftell(file_handle);
-    if (file_size < 0) {fclose(file_handle); return false;}
-    if (file_size == 0) {file_bytes->bytes_count = 0; fclose(file_handle); return true;}
-    if(fseek(file_handle, 0, SEEK_SET)!=0) {fclose(file_handle); return false;}
-    file_bytes->bytes=(uint8_t*)realloc(file_bytes->bytes, (size_t)file_size);
-    if(!file_bytes->bytes) {fclose(file_handle); return false;}
-    file_bytes->bytes_count = fread(file_bytes->bytes, 1, (size_t)file_size, file_handle);
-    bool ok = !ferror(file_handle);
-    fclose(file_handle);
-    return ok;
-}
-CONSTRUCT_DEF bool CONSTRUCT_write_entire_file(const char* file_path, const void* data, size_t size) {
-    FILE* file = fopen(file_path, "wb");
-    if (file == NULL) return false;
-    size_t bytes_written = fwrite(data, 1, size, file);
-    fclose(file);
-    return bytes_written == size;
-}
-
-CONSTRUCT_DEF bool CONSTRUCT_mkdir_if_not_exists(const char* path){
-    #ifdef _WIN32
-        return (!system(CONSTRUCT_temp_sprintf(CONSTRUCT_MKDIR_CMD, path, path)));
-    #else
-        return (!system(CONSTRUCT_temp_sprintf(CONSTRUCT_MKDIR_CMD, path)));
-    #endif
-}
-CONSTRUCT_DEF bool CONSTRUCT_copy_file(const char* src_path, const char* dst_path){return (!system(CONSTRUCT_temp_sprintf(CONSTRUCT_CP_CMD, src_path, dst_path)));}
-CONSTRUCT_DEF bool CONSTRUCT_copy_directory_recursively(const char* src_path, const char* dst_path) {return (!system(CONSTRUCT_temp_sprintf(CONSTRUCT_CP_R_CMD, src_path, dst_path)));}
-CONSTRUCT_DEF bool CONSTRUCT_move_file(const char* src_path, const char* dst_path) {return (!system(CONSTRUCT_temp_sprintf(CONSTRUCT_MV_CMD, src_path, dst_path)));}
-CONSTRUCT_DEF bool CONSTRUCT_delete_file(const char* path) {return (!system(CONSTRUCT_temp_sprintf(CONSTRUCT_RM_CMD, path)));}
-CONSTRUCT_DEF bool CONSTRUCT_delete_directory(const char* path) {return (!system(CONSTRUCT_temp_sprintf(CONSTRUCT_RMDIR_CMD, path)));}
-CONSTRUCT_DEF bool CONSTRUCT_fetch_file(const char* path, const char* url) {return (!system(CONSTRUCT_temp_sprintf(CONSTRUCT_FETCH_CMD, url, path)));}
-
-#define CONSTRUCT_mkdir_if_not_exists_l(path) do {if(CONSTRUCT_mkdir_if_not_exists(path)) CONSTRUCT_print_log(CONSTRUCT_INFO, "CREATED DIRECTORY %s", path); else CONSTRUCT_print_log(CONSTRUCT_ERROR, "COULDNT CREATE DIRECTORY %s", path);} while(0)
-#define CONSTRUCT_copy_file_l(src_path, dst_path) do {if(CONSTRUCT_copy_file(src_path, dst_path)) CONSTRUCT_print_log(CONSTRUCT_INFO, "COPIED FILE %s TO %s", src_path, dst_path); else CONSTRUCT_print_log(CONSTRUCT_ERROR, "COULDNT COPY FILE %s TO %s", src_path, dst_path);} while(0)
-#define CONSTRUCT_copy_directory_recursively_l(src_path, dst_path) do {if(CONSTRUCT_copy_directory_recursively(src_path, dst_path)) CONSTRUCT_print_log(CONSTRUCT_INFO, "RECURSIVELY COPIED DIRECTORY %s TO %s", src_path, dst_path); else CONSTRUCT_print_log(CONSTRUCT_ERROR, "COULDNT RECURSIVELY COPY DIRECTORY %s TO %s", src_path, dst_path);} while(0)
-#define CONSTRUCT_move_file_l(src_path, dst_path) do {if(CONSTRUCT_move_file(src_path, dst_path)) CONSTRUCT_print_log(CONSTRUCT_INFO, "MOVED FILE %s TO %s", src_path, dst_path); else CONSTRUCT_print_log(CONSTRUCT_ERROR, "COULDNT MOVE FILE %s TO %s", src_path, dst_path);} while(0)
-#define CONSTRUCT_delete_file_l(path) do {if(CONSTRUCT_delete_file(path)) CONSTRUCT_print_log(CONSTRUCT_INFO, "DELETED FILE %s", path); else CONSTRUCT_print_log(CONSTRUCT_ERROR, "COULDNT DELETE FILE %s", path);} while(0)
-#define CONSTRUCT_delete_directory_l(path) do {if(CONSTRUCT_delete_directory(path)) CONSTRUCT_print_log(CONSTRUCT_INFO, "DELETED DIRECTORY %s", path); else CONSTRUCT_print_log(CONSTRUCT_ERROR, "COULDNT DELETE DIRECTORY %s", path);} while(0)
-#define CONSTRUCT_fetch_file_l(path, url) do {if(CONSTRUCT_fetch_file(path, url)) CONSTRUCT_print_log(CONSTRUCT_INFO, "FETCHED FILE %s TO %s", path, url); else CONSTRUCT_print_log(CONSTRUCT_ERROR, "COULDNT FETCH FILE %s TO %s", path, url);} while(0)
-#define CONSTRUCT_read_entire_file_l(path, dab) do {if(CONSTRUCT_read_entire_file(path, dab)) CONSTRUCT_print_log(CONSTRUCT_INFO, "READ FILE %s", path); else CONSTRUCT_print_log(CONSTRUCT_ERROR, "COULDNT READ FILE %s", path);} while(0)
-#define CONSTRUCT_write_entire_file_l(path, data, size) do {if(CONSTRUCT_write_entire_file(path, data, size)) CONSTRUCT_print_log(CONSTRUCT_INFO, "WROTE FILE %s", path); else CONSTRUCT_print_log(CONSTRUCT_ERROR, "COULDNT WRITE FILE %s", path);} while(0)
-
-//================================================================
 //SECTION: String View
 //================================================================
 
@@ -350,6 +289,76 @@ CONSTRUCT_DEF CONSTRUCT_StringView CONSTRUCT_sv_from_parts(const char* cstr, siz
 #define CONSTRUCT_SV_Arg(sv) (int)CONSTRUCT_sv_len(sv), (sv).str
 
 //================================================================
+//SECTION: File Handling
+//================================================================
+
+CONSTRUCT_DEF bool CONSTRUCT_file_exists(char* file_path){FILE* file; if ((file = fopen(file_path, "r"))) {fclose(file); return true;} return false;}
+CONSTRUCT_DEF time_t CONSTRUCT_get_mtime(char* file_path) {struct stat st; if (stat(file_path, &st) == -1) return 0; return st.st_mtime;}
+CONSTRUCT_DEF bool CONSTRUCT_is_newer(char* new_path, char* old_path){
+	time_t new_mtime = CONSTRUCT_get_mtime(new_path);
+	time_t old_mtime = CONSTRUCT_get_mtime(old_path);
+	if (new_mtime == 0 || old_mtime == 0) return true;
+	return new_mtime > old_mtime;
+}
+CONSTRUCT_DEF CONSTRUCT_StringView CONSTRUCT_path_basename(const char* path){
+    const char* p = strrchr(path, CONSTRUCT_PS_CHR); 
+    p = p ? p + 1 : path;
+    return (CONSTRUCT_StringView){p, strlen(p)};
+}
+CONSTRUCT_DEF CONSTRUCT_StringView CONSTRUCT_path_dirname(const char* path){
+    const char* p = strrchr(path, CONSTRUCT_PS_CHR); 
+    p = p ? p + 1 : path;
+    return (CONSTRUCT_StringView){path, p - path};
+}
+typedef struct {uint8_t* bytes; size_t bytes_count;} CONSTRUCT_FileBytes;
+CONSTRUCT_DEF bool CONSTRUCT_read_entire_file(const char* file_path, CONSTRUCT_FileBytes* file_bytes) {
+    FILE* file_handle = fopen(file_path, "rb");
+    if (file_handle == NULL) return false;
+    if(fseek(file_handle, 0, SEEK_END)!=0) {fclose(file_handle); return false;}
+    int64_t file_size = ftell(file_handle);
+    if (file_size < 0) {fclose(file_handle); return false;}
+    if (file_size == 0) {file_bytes->bytes_count = 0; fclose(file_handle); return true;}
+    if(fseek(file_handle, 0, SEEK_SET)!=0) {fclose(file_handle); return false;}
+    file_bytes->bytes=(uint8_t*)realloc(file_bytes->bytes, (size_t)file_size);
+    if(!file_bytes->bytes) {fclose(file_handle); return false;}
+    file_bytes->bytes_count = fread(file_bytes->bytes, 1, (size_t)file_size, file_handle);
+    bool ok = !ferror(file_handle);
+    fclose(file_handle);
+    return ok;
+}
+CONSTRUCT_DEF bool CONSTRUCT_write_entire_file(const char* file_path, const void* data, size_t size) {
+    FILE* file = fopen(file_path, "wb");
+    if (file == NULL) return false;
+    size_t bytes_written = fwrite(data, 1, size, file);
+    fclose(file);
+    return bytes_written == size;
+}
+
+CONSTRUCT_DEF bool CONSTRUCT_mkdir_if_not_exists(const char* path){
+    #ifdef _WIN32
+        return (!system(CONSTRUCT_temp_sprintf(CONSTRUCT_MKDIR_CMD, path, path)));
+    #else
+        return (!system(CONSTRUCT_temp_sprintf(CONSTRUCT_MKDIR_CMD, path)));
+    #endif
+}
+CONSTRUCT_DEF bool CONSTRUCT_copy_file(const char* src_path, const char* dst_path){return (!system(CONSTRUCT_temp_sprintf(CONSTRUCT_CP_CMD, src_path, dst_path)));}
+CONSTRUCT_DEF bool CONSTRUCT_copy_directory_recursively(const char* src_path, const char* dst_path) {return (!system(CONSTRUCT_temp_sprintf(CONSTRUCT_CP_R_CMD, src_path, dst_path)));}
+CONSTRUCT_DEF bool CONSTRUCT_move_file(const char* src_path, const char* dst_path) {return (!system(CONSTRUCT_temp_sprintf(CONSTRUCT_MV_CMD, src_path, dst_path)));}
+CONSTRUCT_DEF bool CONSTRUCT_delete_file(const char* path) {return (!system(CONSTRUCT_temp_sprintf(CONSTRUCT_RM_CMD, path)));}
+CONSTRUCT_DEF bool CONSTRUCT_delete_directory(const char* path) {return (!system(CONSTRUCT_temp_sprintf(CONSTRUCT_RMDIR_CMD, path)));}
+CONSTRUCT_DEF bool CONSTRUCT_fetch_file(const char* path, const char* url) {return (!system(CONSTRUCT_temp_sprintf(CONSTRUCT_FETCH_CMD, url, path)));}
+
+#define CONSTRUCT_mkdir_if_not_exists_l(path) do {if(CONSTRUCT_mkdir_if_not_exists(path)) CONSTRUCT_print_log(CONSTRUCT_INFO, "CREATED DIRECTORY %s", path); else CONSTRUCT_print_log(CONSTRUCT_ERROR, "COULDNT CREATE DIRECTORY %s", path);} while(0)
+#define CONSTRUCT_copy_file_l(src_path, dst_path) do {if(CONSTRUCT_copy_file(src_path, dst_path)) CONSTRUCT_print_log(CONSTRUCT_INFO, "COPIED FILE %s TO %s", src_path, dst_path); else CONSTRUCT_print_log(CONSTRUCT_ERROR, "COULDNT COPY FILE %s TO %s", src_path, dst_path);} while(0)
+#define CONSTRUCT_copy_directory_recursively_l(src_path, dst_path) do {if(CONSTRUCT_copy_directory_recursively(src_path, dst_path)) CONSTRUCT_print_log(CONSTRUCT_INFO, "RECURSIVELY COPIED DIRECTORY %s TO %s", src_path, dst_path); else CONSTRUCT_print_log(CONSTRUCT_ERROR, "COULDNT RECURSIVELY COPY DIRECTORY %s TO %s", src_path, dst_path);} while(0)
+#define CONSTRUCT_move_file_l(src_path, dst_path) do {if(CONSTRUCT_move_file(src_path, dst_path)) CONSTRUCT_print_log(CONSTRUCT_INFO, "MOVED FILE %s TO %s", src_path, dst_path); else CONSTRUCT_print_log(CONSTRUCT_ERROR, "COULDNT MOVE FILE %s TO %s", src_path, dst_path);} while(0)
+#define CONSTRUCT_delete_file_l(path) do {if(CONSTRUCT_delete_file(path)) CONSTRUCT_print_log(CONSTRUCT_INFO, "DELETED FILE %s", path); else CONSTRUCT_print_log(CONSTRUCT_ERROR, "COULDNT DELETE FILE %s", path);} while(0)
+#define CONSTRUCT_delete_directory_l(path) do {if(CONSTRUCT_delete_directory(path)) CONSTRUCT_print_log(CONSTRUCT_INFO, "DELETED DIRECTORY %s", path); else CONSTRUCT_print_log(CONSTRUCT_ERROR, "COULDNT DELETE DIRECTORY %s", path);} while(0)
+#define CONSTRUCT_fetch_file_l(path, url) do {if(CONSTRUCT_fetch_file(path, url)) CONSTRUCT_print_log(CONSTRUCT_INFO, "FETCHED FILE %s TO %s", path, url); else CONSTRUCT_print_log(CONSTRUCT_ERROR, "COULDNT FETCH FILE %s TO %s", path, url);} while(0)
+#define CONSTRUCT_read_entire_file_l(path, dab) do {if(CONSTRUCT_read_entire_file(path, dab)) CONSTRUCT_print_log(CONSTRUCT_INFO, "READ FILE %s", path); else CONSTRUCT_print_log(CONSTRUCT_ERROR, "COULDNT READ FILE %s", path);} while(0)
+#define CONSTRUCT_write_entire_file_l(path, data, size) do {if(CONSTRUCT_write_entire_file(path, data, size)) CONSTRUCT_print_log(CONSTRUCT_INFO, "WROTE FILE %s", path); else CONSTRUCT_print_log(CONSTRUCT_ERROR, "COULDNT WRITE FILE %s", path);} while(0)
+
+//================================================================
 //SECTION: Misc
 //================================================================
 
@@ -373,7 +382,7 @@ CONSTRUCT_DEF CONSTRUCT_StringView CONSTRUCT_sv_from_parts(const char* cstr, siz
 #endif
 #define CONSTRUCT_CLOCK_START CONSTRUCT_c1=clock()
 #define CONSTRUCT_CLOCK_END CONSTRUCT_c2=clock()
-#define CONSTRUCT_CLOCK_SEC ((float)(CONSTRUCT_c2 - CONSTRUCT_c1))/CLOCKS_PER_SEC
+#define CONSTRUCT_CLOCK_SEC (((float)(CONSTRUCT_c2 - CONSTRUCT_c1))/CLOCKS_PER_SEC)
 #define CONSTRUCT_TIMER_START CONSTRUCT_t1=time(NULL)
 #define CONSTRUCT_TIMER_END CONSTRUCT_t2=time(NULL)
 #define CONSTRUCT_TIMER_SEC (CONSTRUCT_t2 - CONSTRUCT_t1)
@@ -398,6 +407,74 @@ CONSTRUCT_DEF CONSTRUCT_StringView CONSTRUCT_sv_from_parts(const char* cstr, siz
 #define CONSTRUCT_u_expect_t(exp) if(!(exp)) CONSTRUCT_UNREACHABLE()
 #define CONSTRUCT_u_expect_f(exp) if((exp)) CONSTRUCT_UNREACHABLE()
 #define CONSTRUCT_u_expect_p(exp) if((exp)<0) CONSTRUCT_UNREACHABLE()
+
+//================================================================
+//SECTION: Util
+//================================================================
+
+CONSTRUCT_DEF bool CONSTRUCT_arg_is(size_t i, char* argument, size_t argc, char** argv){
+    if (argc<i+1) return false;
+	return (strcmp(argv[i], argument)==0);
+}
+
+CONSTRUCT_DEF bool CONSTRUCT_shell(char* shell){
+    printf("%s\n", shell);
+    return !system(shell);
+}
+
+CONSTRUCT_DEF bool CONSTRUCT_fetch_if_not_exist(char* path, char* url){
+    if (!CONSTRUCT_file_exists(path)) return CONSTRUCT_fetch_file(path, url);
+    return true;
+}
+
+//================================================================
+//SECTION: Include scanning
+//================================================================
+
+CONSTRUCT_da_define(char*, CONSTRUCT_Dependencies);
+
+CONSTRUCT_DEF void CONSTRUCT_dependencies_free(CONSTRUCT_Dependencies* deps) {
+    for (size_t i = 0; i < deps->count; ++i) CONSTRUCT_FREE(deps->items[i]);
+    CONSTRUCT_da_free(deps);
+}
+
+CONSTRUCT_DEF size_t CONSTRUCT_scan_includes(const char* src_file_path, CONSTRUCT_Dependencies* dependencies) {
+    CONSTRUCT_Dependencies worklist = {0};
+    CONSTRUCT_da_append(&worklist, (char*)src_file_path);
+    size_t total = 0;
+    for (size_t head = 0; head < worklist.count; ++head) {
+        CONSTRUCT_FileBytes fb = {0};
+        if (!CONSTRUCT_read_entire_file(worklist.items[head], &fb)) continue;
+        CONSTRUCT_StringView content = CONSTRUCT_sv_from_parts((char*)fb.bytes, fb.bytes_count);
+        while (content.len > 0) {
+            CONSTRUCT_StringView line = CONSTRUCT_sv_chop_by_delim(&content, '\n');
+            CONSTRUCT_sv_strip(&line);
+            if (!CONSTRUCT_sv_starts_with(&line, "#include")) continue;
+            CONSTRUCT_sv_trim_left(&line, 8);
+            CONSTRUCT_sv_strip_left(&line);
+            if (line.len == 0 || line.str[0] != '"') continue;
+            CONSTRUCT_sv_trim_left(&line, 1);
+            CONSTRUCT_StringView inc = CONSTRUCT_sv_chop_by_delim(&line, '"');
+            if (inc.len == 0) continue;
+            CONSTRUCT_StringView dir = CONSTRUCT_path_dirname(worklist.items[head]);
+            size_t path_len = dir.len + inc.len;
+            char* dep = (char*)malloc(path_len + 1);
+            if (!dep) continue;
+            memcpy(dep, dir.str, dir.len);
+            memcpy(dep + dir.len, inc.str, inc.len);
+            dep[path_len] = '\0';
+            bool seen = false;
+            for (size_t m = 0; m < worklist.count; ++m) if (strcmp(dep, worklist.items[m]) == 0) { seen = true; break; }
+            if (seen) { free(dep); continue; }
+            CONSTRUCT_da_append(dependencies, dep);
+            CONSTRUCT_da_append(&worklist, dep);
+            total++;
+        }
+        free(fb.bytes);
+    }
+    CONSTRUCT_da_free(&worklist);
+    return total;
+}
 
 //================================================================
 //SECTION: Commands
@@ -445,24 +522,36 @@ CONSTRUCT_da_define(bool, CONSTRUCT_Bools);
 
 CONSTRUCT_DEF bool CONSTRUCT_run_construct(CONSTRUCT_ConstructRules* construct_rules, bool verbose) {
     bool result = true;
-    CONSTRUCT_Bools to_run  = {0};
-    CONSTRUCT_Bools prev_run = {0};
-    CONSTRUCT_da_resize(&to_run,   construct_rules->count);
-    CONSTRUCT_da_resize(&prev_run, construct_rules->count);
-    for (size_t i = 0; i < construct_rules->count; ++i) prev_run.items[i] = false;
+    size_t n = construct_rules->count;
+    CONSTRUCT_Bools to_run = {0};
+    CONSTRUCT_Bools just_ran = {0};
+    CONSTRUCT_Bools already_ran = {0};
+    CONSTRUCT_da_resize(&to_run, n);
+    CONSTRUCT_da_resize(&just_ran, n);
+    CONSTRUCT_da_resize(&already_ran, n);
+    for (size_t i = 0; i < n; ++i) to_run.items[i] = just_ran.items[i] = already_ran.items[i] = false;
+    CONSTRUCT_Dependencies* rule_deps = (CONSTRUCT_Dependencies*)calloc(n, sizeof(CONSTRUCT_Dependencies));
+    if (!rule_deps && n > 0) CONSTRUCT_return_defer(false);
+    for (size_t i = 0; i < n; ++i) {
+        CONSTRUCT_ConstructRule* rule = &construct_rules->items[i];
+        for (size_t k = 0; k < rule->dependencies_count; ++k) CONSTRUCT_scan_includes(rule->dependencies[k], &rule_deps[i]);
+    }
     while (true) {
         size_t run_count = 0;
-        for (size_t i = 0; i < construct_rules->count; ++i) {
+        for (size_t i = 0; i < n; ++i) {
             CONSTRUCT_ConstructRule* rule = &construct_rules->items[i];
             bool dep_ready = true;
             bool needs_run = false;
-            for (size_t k = 0; k < rule->dependencies_count; ++k) if (!CONSTRUCT_file_exists(rule->dependencies[k])) {dep_ready = false; break;}
+            for (size_t k = 0; k < rule->dependencies_count; ++k) if (!CONSTRUCT_file_exists(rule->dependencies[k])) { dep_ready = false; break; }
             if (dep_ready) {
-                if (rule->targets_count == 0) needs_run = true;
+                if (rule->targets_count == 0) needs_run = !already_ran.items[i]; 
                 else {
                     for (size_t j = 0; j < rule->targets_count && !needs_run; ++j) {
                         if (!CONSTRUCT_file_exists(rule->targets[j])) needs_run = true;
-                        else for (size_t k = 0; k < rule->dependencies_count && !needs_run; ++k) if (CONSTRUCT_is_newer(rule->dependencies[k], rule->targets[j])) needs_run = true;
+                        else {
+                            for (size_t k = 0; k < rule->dependencies_count && !needs_run; ++k) if (CONSTRUCT_is_newer(rule->dependencies[k], rule->targets[j])) needs_run = true;
+                            for (size_t k = 0; k < rule_deps[i].count && !needs_run; ++k) if (CONSTRUCT_file_exists(rule_deps[i].items[k]) && CONSTRUCT_is_newer(rule_deps[i].items[k], rule->targets[j])) needs_run = true;
+                        }
                     }
                 }
             }
@@ -470,29 +559,38 @@ CONSTRUCT_DEF bool CONSTRUCT_run_construct(CONSTRUCT_ConstructRules* construct_r
             if (needs_run) run_count++;
         }
         if (run_count == 0) break;
-        bool stalled = true;
-        for (size_t i = 0; i < construct_rules->count; ++i) if (to_run.items[i] != prev_run.items[i]) { stalled = false; break; }
-        if (stalled) {
-            CONSTRUCT_print_log(CONSTRUCT_ERROR, "Build stalled: one or more commands are not producing their declared targets");
-            CONSTRUCT_return_defer(false);
+        for (size_t i = 0; i < n; ++i) {
+            if (just_ran.items[i] && to_run.items[i]) {
+                CONSTRUCT_print_log(CONSTRUCT_ERROR, "Rule[%zu]: Build stalled (rule did not produce its declared targets)", i);
+                CONSTRUCT_return_defer(false);
+            }
         }
-        for (size_t i = 0; i < construct_rules->count; ++i) prev_run.items[i] = to_run.items[i];
-        for (size_t i = 0; i < construct_rules->count; ++i) {
+        for (size_t i = 0; i < n; ++i) just_ran.items[i] = false;
+        for (size_t i = 0; i < n; ++i) {
             if (!to_run.items[i]) continue;
             if (verbose) CONSTRUCT_print_command(&construct_rules->items[i].command);
             if (!CONSTRUCT_command_run(&construct_rules->items[i].command)) CONSTRUCT_return_defer(false);
-            to_run.items[i] = false;
+            just_ran.items[i] = true;
+            if (construct_rules->items[i].targets_count == 0) already_ran.items[i] = true;
         }
     }
 defer:
+    if (rule_deps) {
+        for (size_t i = 0; i < n; ++i) CONSTRUCT_dependencies_free(&rule_deps[i]);
+        free(rule_deps);
+    }
     CONSTRUCT_da_free(&to_run);
-    CONSTRUCT_da_free(&prev_run);
+    CONSTRUCT_da_free(&just_ran);
+    CONSTRUCT_da_free(&already_ran);
     return result;
 }
 
 #ifndef CONSTRUCT_STRIP_PREFIX_GUARD_
 #define CONSTRUCT_STRIP_PREFIX_GUARD_
     #ifndef CONSTRUCT_DONT_STRIP_PREFIX
+        #define ASSERT CONSTRUCT_ASSERT
+        #define REALLOC CONSTRUCT_REALLOC
+        #define FREE CONSTRUCT_FREE
         #define da_define CONSTRUCT_da_define
         #define da_reserve CONSTRUCT_da_reserve
         #define da_append CONSTRUCT_da_append
@@ -533,12 +631,29 @@ defer:
         #define LogType CONSTRUCT_LogType
         #define print_log CONSTRUCT_print_log
         #define fprint_log CONSTRUCT_fprint_log
+        #define StringView CONSTRUCT_StringView
+        #define sv_chop_by_delim CONSTRUCT_sv_chop_by_delim
+        #define sv_trim_left CONSTRUCT_sv_trim_left
+        #define sv_trim_right CONSTRUCT_sv_trim_right
+        #define sv_strip_left CONSTRUCT_sv_strip_left
+        #define sv_strip_right CONSTRUCT_sv_strip_right
+        #define sv_strip CONSTRUCT_sv_strip
+        #define sv_equal CONSTRUCT_sv_equal
+        #define sv_ends_with CONSTRUCT_sv_ends_with
+        #define sv_starts_with CONSTRUCT_sv_starts_with
+        #define sv_to_cstr CONSTRUCT_sv_to_cstr
+        #define sv_from_cstr CONSTRUCT_sv_from_cstr
+        #define sv_from_parts CONSTRUCT_sv_from_parts
+        #define sv_len CONSTRUCT_sv_len
+        #define SV_Fmt CONSTRUCT_SV_Fmt
+        #define SV_Arg CONSTRUCT_SV_Arg
         #define NL CONSTRUCT_NL 
         #define PS CONSTRUCT_PS 
         #define file_exists CONSTRUCT_file_exists
         #define get_mtime CONSTRUCT_get_mtime
         #define is_newer CONSTRUCT_is_newer
         #define path_basename CONSTRUCT_path_basename
+        #define path_dirname CONSTRUCT_path_dirname
         #define mkdir_if_not_exists CONSTRUCT_mkdir_if_not_exists
         #define copy_file CONSTRUCT_copy_file
         #define copy_directory_recursively CONSTRUCT_copy_directory_recursively
@@ -558,25 +673,6 @@ defer:
         #define fetch_file_l CONSTRUCT_fetch_file_l
         #define read_entire_file_l CONSTRUCT_read_entire_file_l
         #define write_entire_file_l CONSTRUCT_write_entire_file_l
-        #define StringView CONSTRUCT_StringView
-        #define sv_chop_by_delim CONSTRUCT_sv_chop_by_delim
-        #define sv_trim_left CONSTRUCT_sv_trim_left
-        #define sv_trim_right CONSTRUCT_sv_trim_right
-        #define sv_strip_left CONSTRUCT_sv_strip_left
-        #define sv_strip_right CONSTRUCT_sv_strip_right
-        #define sv_strip CONSTRUCT_sv_strip
-        #define sv_equal CONSTRUCT_sv_equal
-        #define sv_ends_with CONSTRUCT_sv_ends_with
-        #define sv_starts_with CONSTRUCT_sv_starts_with
-        #define sv_to_cstr CONSTRUCT_sv_to_cstr
-        #define sv_from_cstr CONSTRUCT_sv_from_cstr
-        #define sv_from_parts CONSTRUCT_sv_from_parts
-        #define sv_len CONSTRUCT_sv_len
-        #define SV_Fmt CONSTRUCT_SV_Fmt
-        #define SV_Arg CONSTRUCT_SV_Arg
-        #define ASSERT CONSTRUCT_ASSERT
-        #define REALLOC CONSTRUCT_REALLOC
-        #define FREE CONSTRUCT_FREE
         #define STRINGIFY CONSTRUCT_STRINGIFY
         #define TOSTRING CONSTRUCT_TOSTRING
         #define UNUSED CONSTRUCT_UNUSED
@@ -608,8 +704,13 @@ defer:
         #define u_expect_t CONSTRUCT_u_expect_t
         #define u_expect_f CONSTRUCT_u_expect_f
         #define u_expect_p CONSTRUCT_u_expect_p
+        #define arg_is CONSTRUCT_arg_is
+        #define shell CONSTRUCT_shell
+        #define fetch_if_not_exist CONSTRUCT_fetch_if_not_exist
+        #define Dependencies CONSTRUCT_Dependencies
+        #define dependencies_free CONSTRUCT_dependencies_free
+        #define scan_includes CONSTRUCT_scan_includes
         #define Command CONSTRUCT_Command
-        #define CommandOptions CONSTRUCT_CommandOptions
         #define command_append CONSTRUCT_command_append
         #define command_extend CONSTRUCT_command_extend
         #define command_free CONSTRUCT_command_free
@@ -623,3 +724,4 @@ defer:
 #endif // CONSTRUCT_STRIP_PREFIX_GUARD_
 
 #endif // _CONSTRUCT_H
+
