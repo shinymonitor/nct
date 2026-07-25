@@ -26,79 +26,79 @@
 //================================================================
 
 #ifdef _WIN32
-	#define CONSTRUCT_NL "\r\n"
-	#define CONSTRUCT_PS "\\"
+    #define CONSTRUCT_NL "\r\n"
+    #define CONSTRUCT_PS "\\"
     #define CONSTRUCT_PS_CHR '\\'
     #define CONSTRUCT_CS "&&"
     #define CONSTRUCT_MKDIR_CMD "if not exist \"%s\" mkdir \"%s\""
     #define CONSTRUCT_CP_CMD "copy /Y \"%s\" \"%s\""
     #define CONSTRUCT_CP_R_CMD "echo d | xcopy /Y /E /I \"%s\\\" \"%s\\\""
     #define CONSTRUCT_MV_CMD "move /Y \"%s\" \"%s\""
-	#define CONSTRUCT_RM_CMD "del /Q \"%s\""
-	#define CONSTRUCT_RMDIR_CMD "rmdir /S /Q \"%s\""
+    #define CONSTRUCT_RM_CMD "del /Q \"%s\""
+    #define CONSTRUCT_RMDIR_CMD "rmdir /S /Q \"%s\""
     #define CONSTRUCT_FETCH_CMD "powershell -Command \"Invoke-WebRequest -Uri '%s' -OutFile '%s'\""
 #else
-	#define CONSTRUCT_NL "\n"
-	#define CONSTRUCT_PS "/"
+    #define CONSTRUCT_NL "\n"
+    #define CONSTRUCT_PS "/"
     #define CONSTRUCT_PS_CHR '/'
     #define CONSTRUCT_CS "&&"
     #define CONSTRUCT_MKDIR_CMD "mkdir -p \"%s\""
     #define CONSTRUCT_CP_CMD "cp \"%s\" \"%s\""
     #define CONSTRUCT_CP_R_CMD "cp -r \"%s/.\" \"%s\""
     #define CONSTRUCT_MV_CMD "mv \"%s\" \"%s\""
-	#define CONSTRUCT_RM_CMD "rm \"%s\""
-	#define CONSTRUCT_RMDIR_CMD "rm -rf \"%s\""
-	#define CONSTRUCT_FETCH_CMD "wget -q --show-progress \"%s\" -O \"%s\""
+    #define CONSTRUCT_RM_CMD "rm \"%s\""
+    #define CONSTRUCT_RMDIR_CMD "rm -rf \"%s\""
+    #define CONSTRUCT_FETCH_CMD "wget -q --show-progress \"%s\" -O \"%s\""
 #endif
 
 #if defined(__linux__)
     #define CONSTRUCT_PLATFORM_OS "LINUX"
 #elif defined(_WIN32)
-	#define CONSTRUCT_PLATFORM_OS "WINDOWS"
+    #define CONSTRUCT_PLATFORM_OS "WINDOWS"
 #elif defined(__APPLE__)
-   	#define CONSTRUCT_PLATFORM_OS "APPLE"
+       #define CONSTRUCT_PLATFORM_OS "APPLE"
 #elif defined(__FreeBSD__) || defined(__OpenBSD__) || defined(__NetBSD__) || defined(__DragonFly__) || defined(__BSD__) || defined(BSD)
-	#define CONSTRUCT_PLATFORM_OS "BSD"
+    #define CONSTRUCT_PLATFORM_OS "BSD"
 #elif defined(unix) || defined(UNIX) || defined(__unix__) || defined(__UNIX__)
-	#define CONSTRUCT_PLATFORM_OS "UNIX"
+    #define CONSTRUCT_PLATFORM_OS "UNIX"
 #else
     #define CONSTRUCT_PLATFORM_OS "UNKNOWN"
 #endif
 
 #if defined(__x86_64__) || defined(_M_X64)
-	#define CONSTRUCT_PLATFORM_ARCH "X86_64"
+    #define CONSTRUCT_PLATFORM_ARCH "X86_64"
 #elif defined(i386) || defined(__i386__) || defined(__i386) || defined(_M_IX86)
-	#define CONSTRUCT_PLATFORM_ARCH "X86_32"
+    #define CONSTRUCT_PLATFORM_ARCH "X86_32"
 #elif defined(__ARM_ARCH_2__)
-	#define CONSTRUCT_PLATFORM_ARCH "ARM2"
+    #define CONSTRUCT_PLATFORM_ARCH "ARM2"
 #elif defined(__ARM_ARCH_3__) || defined(__ARM_ARCH_3M__)
-	#define CONSTRUCT_PLATFORM_ARCH "ARM3"
+    #define CONSTRUCT_PLATFORM_ARCH "ARM3"
 #elif defined(__ARM_ARCH_4T__) || defined(__TARGET_ARM_4T)
-	#define CONSTRUCT_PLATFORM_ARCH "ARM4T"
+    #define CONSTRUCT_PLATFORM_ARCH "ARM4T"
 #elif defined(__ARM_ARCH_5_) || defined(__ARM_ARCH_5E_)
-	#define CONSTRUCT_PLATFORM_ARCH "ARM5"
+    #define CONSTRUCT_PLATFORM_ARCH "ARM5"
 #elif defined(__ARM_ARCH_6T2_) || defined(__ARM_ARCH_6T2_)
-	#define CONSTRUCT_PLATFORM_ARCH "ARM6T2"
+    #define CONSTRUCT_PLATFORM_ARCH "ARM6T2"
 #elif defined(__ARM_ARCH_6__) || defined(__ARM_ARCH_6J__) || defined(__ARM_ARCH_6K__) || defined(__ARM_ARCH_6Z__) || defined(__ARM_ARCH_6ZK__)
-	#define CONSTRUCT_PLATFORM_ARCH "ARM6"
+    #define CONSTRUCT_PLATFORM_ARCH "ARM6"
 #elif defined(__ARM_ARCH_7__) || defined(__ARM_ARCH_7A__) || defined(__ARM_ARCH_7R__) || defined(__ARM_ARCH_7M__) || defined(__ARM_ARCH_7S__)
-	#define CONSTRUCT_PLATFORM_ARCH "ARM7"
+    #define CONSTRUCT_PLATFORM_ARCH "ARM7"
 #elif defined(__aarch64__) || defined(_M_ARM64)
-	#define CONSTRUCT_PLATFORM_ARCH "ARM64"
+    #define CONSTRUCT_PLATFORM_ARCH "ARM64"
 #elif defined(mips) || defined(__mips__) || defined(__mips)
-	#define CONSTRUCT_PLATFORM_ARCH "MIPS"
+    #define CONSTRUCT_PLATFORM_ARCH "MIPS"
 #elif defined(__sh__)
-	#define CONSTRUCT_PLATFORM_ARCH "SUPERH"
+    #define CONSTRUCT_PLATFORM_ARCH "SUPERH"
 #elif defined(__powerpc) || defined(__powerpc__) || defined(__powerpc64__) || defined(__POWERPC__) || defined(__ppc__) || defined(__PPC__) || defined(_ARCH_PPC)
-	#define CONSTRUCT_PLATFORM_ARCH "POWERPC"
+    #define CONSTRUCT_PLATFORM_ARCH "POWERPC"
 #elif defined(__PPC64__) || defined(__ppc64__) || defined(_ARCH_PPC64)
-	#define CONSTRUCT_PLATFORM_ARCH "POWERPC64"
+    #define CONSTRUCT_PLATFORM_ARCH "POWERPC64"
 #elif defined(__sparc__) || defined(__sparc)
-	#define CONSTRUCT_PLATFORM_ARCH "SPARC"
+    #define CONSTRUCT_PLATFORM_ARCH "SPARC"
 #elif defined(__m68k__)
-	#define CONSTRUCT_PLATFORM_ARCH "M68K"
+    #define CONSTRUCT_PLATFORM_ARCH "M68K"
 #else
-	#define CONSTRUCT_PLATFORM_ARCH "UNKNOWN"
+    #define CONSTRUCT_PLATFORM_ARCH "UNKNOWN"
 #endif
 
 #if defined(__clang__)
@@ -148,59 +148,59 @@
     } \
 } while (0)
 #define CONSTRUCT_da_append(da, item) do { \
-	CONSTRUCT_da_reserve((da), (da)->count + 1); \
-	(da)->items[(da)->count++] = (item); \
+    CONSTRUCT_da_reserve((da), (da)->count + 1); \
+    (da)->items[(da)->count++] = (item); \
 } while (0)
 #define CONSTRUCT_da_append_many(da, b, n) do { \
-	CONSTRUCT_da_reserve((da), (da)->count + (n)); \
-	memcpy((da)->items + (da)->count, (b), (n)*sizeof(*(da)->items)); \
-	(da)->count += (n); \
+    CONSTRUCT_da_reserve((da), (da)->count + (n)); \
+    memcpy((da)->items + (da)->count, (b), (n)*sizeof(*(da)->items)); \
+    (da)->count += (n); \
 } while (0)
 #define CONSTRUCT_da_resize(da, new_size) do { \
-	CONSTRUCT_da_reserve((da), new_size); \
-	(da)->count = (new_size); \
+    CONSTRUCT_da_reserve((da), new_size); \
+    (da)->count = (new_size); \
 } while (0)
 
 #define CONSTRUCT_da_remove_unordered(da, i) do { \
-	size_t j = (i); \
-	CONSTRUCT_ASSERT(j < (da)->count); \
-	(da)->items[j] = (da)->items[--(da)->count]; \
+    size_t j = (i); \
+    CONSTRUCT_ASSERT(j < (da)->count); \
+    (da)->items[j] = (da)->items[--(da)->count]; \
 } while(0)
 #define CONSTRUCT_da_remove_unordered_many(da, i, n) do { \
-	size_t j = (i); size_t l = (n); \
-	CONSTRUCT_ASSERT(j + l <= (da)->count); \
-	size_t tail = (da)->count - j - l; \
-	size_t m = (tail < l) ? tail : l; \
-	if (m > 0) memcpy((da)->items + j, (da)->items + (da)->count - m, m * sizeof(*(da)->items)); \
-	(da)->count -= l; \
+    size_t j = (i); size_t l = (n); \
+    CONSTRUCT_ASSERT(j + l <= (da)->count); \
+    size_t tail = (da)->count - j - l; \
+    size_t m = (tail < l) ? tail : l; \
+    if (m > 0) memcpy((da)->items + j, (da)->items + (da)->count - m, m * sizeof(*(da)->items)); \
+    (da)->count -= l; \
 } while(0)
 #define CONSTRUCT_da_remove_ordered(da, i) do { \
-	size_t j = (i); \
-	CONSTRUCT_ASSERT(j < (da)->count); \
-	if (j != (da)->count - 1) memmove((da)->items + j, (da)->items + j + 1, ((da)->count - j - 1) * sizeof(*(da)->items)); \
-	--(da)->count; \
+    size_t j = (i); \
+    CONSTRUCT_ASSERT(j < (da)->count); \
+    if (j != (da)->count - 1) memmove((da)->items + j, (da)->items + j + 1, ((da)->count - j - 1) * sizeof(*(da)->items)); \
+    --(da)->count; \
 } while(0)
 #define CONSTRUCT_da_remove_ordered_many(da, i, n) do { \
-	size_t j = (i); size_t l = (n); \
-	CONSTRUCT_ASSERT(j + l <= (da)->count); \
-	if (j + l != (da)->count) memmove((da)->items + j, (da)->items + j + l, ((da)->count - j - l) * sizeof(*(da)->items)); \
-	(da)->count -= l; \
+    size_t j = (i); size_t l = (n); \
+    CONSTRUCT_ASSERT(j + l <= (da)->count); \
+    if (j + l != (da)->count) memmove((da)->items + j, (da)->items + j + l, ((da)->count - j - l) * sizeof(*(da)->items)); \
+    (da)->count -= l; \
 } while(0)
 #define CONSTRUCT_da_insert(da, i, item) do { \
-	size_t j = (i); \
-	CONSTRUCT_ASSERT(j <= (da)->count); \
-	CONSTRUCT_da_reserve((da), (da)->count + 1); \
-	if (j != (da)->count) memmove((da)->items + j + 1, (da)->items + j, ((da)->count - j) * sizeof(*(da)->items)); \
-	(da)->items[j] = (item); \
-	++(da)->count; \
+    size_t j = (i); \
+    CONSTRUCT_ASSERT(j <= (da)->count); \
+    CONSTRUCT_da_reserve((da), (da)->count + 1); \
+    if (j != (da)->count) memmove((da)->items + j + 1, (da)->items + j, ((da)->count - j) * sizeof(*(da)->items)); \
+    (da)->items[j] = (item); \
+    ++(da)->count; \
 } while(0)
 #define CONSTRUCT_da_insert_many(da, i, b, n) do { \
-	size_t j = (i); size_t l = (n); \
-	CONSTRUCT_ASSERT(j <= (da)->count); \
-	CONSTRUCT_da_reserve((da), (da)->count + l); \
-	if (j != (da)->count) memmove((da)->items + j + l, (da)->items + j, ((da)->count - j) * sizeof(*(da)->items)); \
-	memcpy((da)->items + j, b, l * sizeof(*(da)->items)); \
-	(da)->count += l; \
+    size_t j = (i); size_t l = (n); \
+    CONSTRUCT_ASSERT(j <= (da)->count); \
+    CONSTRUCT_da_reserve((da), (da)->count + l); \
+    if (j != (da)->count) memmove((da)->items + j + l, (da)->items + j, ((da)->count - j) * sizeof(*(da)->items)); \
+    memcpy((da)->items + j, b, l * sizeof(*(da)->items)); \
+    (da)->count += l; \
 } while(0)
 #define CONSTRUCT_da_foreach(Type, it, da) for (Type* it = (da)->items; it < (da)->items + (da)->count; ++it)
 #define CONSTRUCT_da_reset(da) do {(da)->count=0;} while(0)
@@ -391,10 +391,10 @@ CONSTRUCT_DEF CONSTRUCT_StringView CONSTRUCT_sv_from_parts(const char* cstr, siz
 CONSTRUCT_DEF bool CONSTRUCT_file_exists(char* file_path){FILE* file; if ((file = fopen(file_path, "r"))) {fclose(file); return true;} return false;}
 CONSTRUCT_DEF time_t CONSTRUCT_get_mtime(char* file_path) {struct stat st; if (stat(file_path, &st) == -1) return 0; return st.st_mtime;}
 CONSTRUCT_DEF bool CONSTRUCT_is_newer(char* new_path, char* old_path){
-	time_t new_mtime = CONSTRUCT_get_mtime(new_path);
-	time_t old_mtime = CONSTRUCT_get_mtime(old_path);
-	if (new_mtime == 0 || old_mtime == 0) return true;
-	return new_mtime > old_mtime;
+    time_t new_mtime = CONSTRUCT_get_mtime(new_path);
+    time_t old_mtime = CONSTRUCT_get_mtime(old_path);
+    if (new_mtime == 0 || old_mtime == 0) return true;
+    return new_mtime > old_mtime;
 }
 CONSTRUCT_DEF CONSTRUCT_StringView CONSTRUCT_path_basename(const char* path){
     const char* p = strrchr(path, CONSTRUCT_PS_CHR); 
@@ -509,12 +509,12 @@ CONSTRUCT_DEF bool CONSTRUCT_fetch_file(const char* path, const char* url) {retu
 //================================================================
 
 CONSTRUCT_DEF bool CONSTRUCT_str_is(char* a, char* b){
-	return (strcmp(a, b)==0);
+    return (strcmp(a, b)==0);
 }
 
 CONSTRUCT_DEF bool CONSTRUCT_arg_is(size_t i, char* argument, size_t argc, char** argv){
     if (argc<i+1) return false;
-	return (strcmp(argv[i], argument)==0);
+    return (strcmp(argv[i], argument)==0);
 }
 
 CONSTRUCT_DEF bool CONSTRUCT_shell(char* shell){
@@ -688,9 +688,9 @@ defer:
 #ifndef CONSTRUCT_STRIP_PREFIX_GUARD_
 #define CONSTRUCT_STRIP_PREFIX_GUARD_
     #ifndef CONSTRUCT_DONT_STRIP_PREFIX
-    	#define PLATFORM_OS CONSTRUCT_PLATFORM_OS
-    	#define PLATFORM_ARCH CONSTRUCT_PLATFORM_ARCH
-    	#define PLATFORM_COMPILER CONSTRUCT_PLATFORM_COMPILER
+        #define PLATFORM_OS CONSTRUCT_PLATFORM_OS
+        #define PLATFORM_ARCH CONSTRUCT_PLATFORM_ARCH
+        #define PLATFORM_COMPILER CONSTRUCT_PLATFORM_COMPILER
         #define ASSERT CONSTRUCT_ASSERT
         #define REALLOC CONSTRUCT_REALLOC
         #define FREE CONSTRUCT_FREE
