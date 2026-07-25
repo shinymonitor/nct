@@ -11,22 +11,21 @@
 //SECTION: Includes
 //================================================================
 
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <stdio.h>
 #include <stdarg.h>
 #include <time.h>
 #include <stdint.h>
 #include <stdbool.h>
 #include <ctype.h>
-#include <sys/stat.h> 
+#include <sys/stat.h>
 
 //================================================================
 //SECTION: Platform
 //================================================================
 
 #ifdef _WIN32
-	#include <direct.h>
 	#define CONSTRUCT_NL "\r\n"
 	#define CONSTRUCT_PS "\\"
     #define CONSTRUCT_PS_CHR '\\'
@@ -42,7 +41,7 @@
 	#define CONSTRUCT_NL "\n"
 	#define CONSTRUCT_PS "/"
     #define CONSTRUCT_PS_CHR '/'
-    #define CONSTRUCT_CS ";"
+    #define CONSTRUCT_CS "&&"
     #define CONSTRUCT_MKDIR_CMD "mkdir -p \"%s\""
     #define CONSTRUCT_CP_CMD "cp \"%s\" \"%s\""
     #define CONSTRUCT_CP_R_CMD "cp -r \"%s/.\" \"%s\""
@@ -50,6 +49,66 @@
 	#define CONSTRUCT_RM_CMD "rm \"%s\""
 	#define CONSTRUCT_RMDIR_CMD "rm -rf \"%s\""
 	#define CONSTRUCT_FETCH_CMD "wget -q --show-progress \"%s\" -O \"%s\""
+#endif
+
+#if defined(__linux__)
+    #define CONSTRUCT_PLATFORM_OS "LINUX"
+#elif defined(_WIN32)
+	#define CONSTRUCT_PLATFORM_OS "WINDOWS"
+#elif defined(__APPLE__)
+   	#define CONSTRUCT_PLATFORM_OS "APPLE"
+#elif defined(__FreeBSD__) || defined(__OpenBSD__) || defined(__NetBSD__) || defined(__DragonFly__) || defined(__BSD__) || defined(BSD)
+	#define CONSTRUCT_PLATFORM_OS "BSD"
+#elif defined(unix) || defined(UNIX) || defined(__unix__) || defined(__UNIX__)
+	#define CONSTRUCT_PLATFORM_OS "UNIX"
+#else
+    #define CONSTRUCT_PLATFORM_OS "UNKNOWN"
+#endif
+
+#if defined(__x86_64__) || defined(_M_X64)
+	#define CONSTRUCT_PLATFORM_ARCH "X86_64"
+#elif defined(i386) || defined(__i386__) || defined(__i386) || defined(_M_IX86)
+	#define CONSTRUCT_PLATFORM_ARCH "X86_32"
+#elif defined(__ARM_ARCH_2__)
+	#define CONSTRUCT_PLATFORM_ARCH "ARM2"
+#elif defined(__ARM_ARCH_3__) || defined(__ARM_ARCH_3M__)
+	#define CONSTRUCT_PLATFORM_ARCH "ARM3"
+#elif defined(__ARM_ARCH_4T__) || defined(__TARGET_ARM_4T)
+	#define CONSTRUCT_PLATFORM_ARCH "ARM4T"
+#elif defined(__ARM_ARCH_5_) || defined(__ARM_ARCH_5E_)
+	#define CONSTRUCT_PLATFORM_ARCH "ARM5"
+#elif defined(__ARM_ARCH_6T2_) || defined(__ARM_ARCH_6T2_)
+	#define CONSTRUCT_PLATFORM_ARCH "ARM6T2"
+#elif defined(__ARM_ARCH_6__) || defined(__ARM_ARCH_6J__) || defined(__ARM_ARCH_6K__) || defined(__ARM_ARCH_6Z__) || defined(__ARM_ARCH_6ZK__)
+	#define CONSTRUCT_PLATFORM_ARCH "ARM6"
+#elif defined(__ARM_ARCH_7__) || defined(__ARM_ARCH_7A__) || defined(__ARM_ARCH_7R__) || defined(__ARM_ARCH_7M__) || defined(__ARM_ARCH_7S__)
+	#define CONSTRUCT_PLATFORM_ARCH "ARM7"
+#elif defined(__aarch64__) || defined(_M_ARM64)
+	#define CONSTRUCT_PLATFORM_ARCH "ARM64"
+#elif defined(mips) || defined(__mips__) || defined(__mips)
+	#define CONSTRUCT_PLATFORM_ARCH "MIPS"
+#elif defined(__sh__)
+	#define CONSTRUCT_PLATFORM_ARCH "SUPERH"
+#elif defined(__powerpc) || defined(__powerpc__) || defined(__powerpc64__) || defined(__POWERPC__) || defined(__ppc__) || defined(__PPC__) || defined(_ARCH_PPC)
+	#define CONSTRUCT_PLATFORM_ARCH "POWERPC"
+#elif defined(__PPC64__) || defined(__ppc64__) || defined(_ARCH_PPC64)
+	#define CONSTRUCT_PLATFORM_ARCH "POWERPC64"
+#elif defined(__sparc__) || defined(__sparc)
+	#define CONSTRUCT_PLATFORM_ARCH "SPARC"
+#elif defined(__m68k__)
+	#define CONSTRUCT_PLATFORM_ARCH "M68K"
+#else
+	#define CONSTRUCT_PLATFORM_ARCH "UNKNOWN"
+#endif
+
+#if defined(__clang__)
+    #define CONSTRUCT_PLATFORM_COMPILER "CLANG"
+#elif defined(__GNUC__) || defined(__GNUG__)
+    #define CONSTRUCT_PLATFORM_COMPILER "GCC"
+#elif defined(_MSC_VER)
+    #define CONSTRUCT_PLATFORM_COMPILER "MSVC"
+#else
+    #define CONSTRUCT_PLATFORM_COMPILER "UNKNOWN"
 #endif
 
 //================================================================
@@ -88,13 +147,63 @@
         (da)->items = CONSTRUCT_REALLOC((da)->items, (da)->capacity * sizeof(*(da)->items)); CONSTRUCT_ASSERT((da)->items != NULL && "DA RESERVE FAILED"); \
     } \
 } while (0)
-#define CONSTRUCT_da_append(da, item) do {CONSTRUCT_da_reserve((da), (da)->count + 1); (da)->items[(da)->count++] = (item);} while (0)
-#define CONSTRUCT_da_append_many(da, new_items, new_items_count) do {CONSTRUCT_da_reserve((da), (da)->count + (new_items_count)); memcpy((da)->items + (da)->count, (new_items), (new_items_count)*sizeof(*(da)->items)); (da)->count += (new_items_count);} while (0)
-#define CONSTRUCT_da_resize(da, new_size) do {CONSTRUCT_da_reserve((da), new_size); (da)->count = (new_size);} while (0)
+#define CONSTRUCT_da_append(da, item) do { \
+	CONSTRUCT_da_reserve((da), (da)->count + 1); \
+	(da)->items[(da)->count++] = (item); \
+} while (0)
+#define CONSTRUCT_da_append_many(da, b, n) do { \
+	CONSTRUCT_da_reserve((da), (da)->count + (n)); \
+	memcpy((da)->items + (da)->count, (b), (n)*sizeof(*(da)->items)); \
+	(da)->count += (n); \
+} while (0)
+#define CONSTRUCT_da_resize(da, new_size) do { \
+	CONSTRUCT_da_reserve((da), new_size); \
+	(da)->count = (new_size); \
+} while (0)
 
-#define CONSTRUCT_da_remove_unordered(da, i) do {size_t j = (i); CONSTRUCT_ASSERT(j < (da)->count); (da)->items[j] = (da)->items[--(da)->count];} while(0)
+#define CONSTRUCT_da_remove_unordered(da, i) do { \
+	size_t j = (i); \
+	CONSTRUCT_ASSERT(j < (da)->count); \
+	(da)->items[j] = (da)->items[--(da)->count]; \
+} while(0)
+#define CONSTRUCT_da_remove_unordered_many(da, i, n) do { \
+	size_t j = (i); size_t l = (n); \
+	CONSTRUCT_ASSERT(j + l <= (da)->count); \
+	size_t tail = (da)->count - j - l; \
+	size_t m = (tail < l) ? tail : l; \
+	if (m > 0) memcpy((da)->items + j, (da)->items + (da)->count - m, m * sizeof(*(da)->items)); \
+	(da)->count -= l; \
+} while(0)
+#define CONSTRUCT_da_remove_ordered(da, i) do { \
+	size_t j = (i); \
+	CONSTRUCT_ASSERT(j < (da)->count); \
+	if (j != (da)->count - 1) memmove((da)->items + j, (da)->items + j + 1, ((da)->count - j - 1) * sizeof(*(da)->items)); \
+	--(da)->count; \
+} while(0)
+#define CONSTRUCT_da_remove_ordered_many(da, i, n) do { \
+	size_t j = (i); size_t l = (n); \
+	CONSTRUCT_ASSERT(j + l <= (da)->count); \
+	if (j + l != (da)->count) memmove((da)->items + j, (da)->items + j + l, ((da)->count - j - l) * sizeof(*(da)->items)); \
+	(da)->count -= l; \
+} while(0)
+#define CONSTRUCT_da_insert(da, i, item) do { \
+	size_t j = (i); \
+	CONSTRUCT_ASSERT(j <= (da)->count); \
+	CONSTRUCT_da_reserve((da), (da)->count + 1); \
+	if (j != (da)->count) memmove((da)->items + j + 1, (da)->items + j, ((da)->count - j) * sizeof(*(da)->items)); \
+	(da)->items[j] = (item); \
+	++(da)->count; \
+} while(0)
+#define CONSTRUCT_da_insert_many(da, i, b, n) do { \
+	size_t j = (i); size_t l = (n); \
+	CONSTRUCT_ASSERT(j <= (da)->count); \
+	CONSTRUCT_da_reserve((da), (da)->count + l); \
+	if (j != (da)->count) memmove((da)->items + j + l, (da)->items + j, ((da)->count - j) * sizeof(*(da)->items)); \
+	memcpy((da)->items + j, b, l * sizeof(*(da)->items)); \
+	(da)->count += l; \
+} while(0)
 #define CONSTRUCT_da_foreach(Type, it, da) for (Type* it = (da)->items; it < (da)->items + (da)->count; ++it)
-#define CONSTRUCT_da_reset(da) (da)->count=0
+#define CONSTRUCT_da_reset(da) do {(da)->count=0;} while(0)
 #define CONSTRUCT_da_free(da) do {(da)->count=0; (da)->capacity=0; CONSTRUCT_FREE((da)->items); (da)->items = NULL;} while(0)
 
 //================================================================
@@ -105,81 +214,82 @@ CONSTRUCT_da_define(char, CONSTRUCT_StringBuilder);
 
 #define CONSTRUCT_sb_append_chr(sb, chr) CONSTRUCT_da_append(sb, chr)
 #define CONSTRUCT_sb_append_buf(sb, buf, size) CONSTRUCT_da_append_many(sb, buf, size)
-#define CONSTRUCT_sb_append_str(sb, str)  do {const char* s = (str); size_t n = strlen(s); CONSTRUCT_da_append_many(sb, s, n);} while (0)
+#define CONSTRUCT_sb_append_cstr(sb, cstr) CONSTRUCT_da_append_many(sb, cstr, strlen(cstr))
 #define CONSTRUCT_sb_append_null(sb) CONSTRUCT_da_append(sb, '\0')
+#define CONSTRUCT_sb_remove(sb, i) CONSTRUCT_da_remove_ordered(sb, i)
+#define CONSTRUCT_sb_remove_slice(sb, i, j) CONSTRUCT_da_remove_ordered_many(sb, i, (j - i))
+#define CONSTRUCT_sb_insert(sb, i, chr) CONSTRUCT_da_insert(sb, i, chr)
+#define CONSTRUCT_sb_insert_buf(sb, i, buf, size) CONSTRUCT_da_insert_many(sb, i, buf, size)
+#define CONSTRUCT_sb_insert_cstr(sb, i, cstr) CONSTRUCT_da_insert_many(sb, i, cstr, strlen(cstr))
 
 #define CONSTRUCT_sb_str(sb) (sb)->items
 #define CONSTRUCT_sb_len(sb) (sb)->count
 #define CONSTRUCT_sb_get(sb, index) (CONSTRUCT_ASSERT((sb)->count>index), (sb)->items[index])
-#define CONSTRUCT_sb_last(sb) (sb)->items[(CONSTRUCT_ASSERT((sb)->count > 0), (sb)->count-1)]
+#define CONSTRUCT_sb_last(sb) (sb)->items[(CONSTRUCT_ASSERT((sb)->count > 0), (sb)->count - 1)]
 #define CONSTRUCT_sb_foreach(it, da) CONSTRUCT_da_foreach(char, it, da)
 #define CONSTRUCT_sb_reset(sb) CONSTRUCT_da_reset((sb))
 #define CONSTRUCT_sb_free(sb) CONSTRUCT_da_free((sb))
 
-#define CONSTRUCT_SB_Fmt "%.*s"
-#define CONSTRUCT_SB_Arg(sb) (int)(sb)->count, (sb)->items
+#define CONSTRUCT_sb_FMT "%.*s"
+#define CONSTRUCT_sb_ARG(sb) (int)(sb)->count, (sb)->items
 
 //================================================================
 //Temp functions
 //================================================================
 
-CONSTRUCT_da_define(char, CONSTRUCT_Temp);
+#ifndef CONSTRUCT_TEMP_CAPACITY
+#define CONSTRUCT_TEMP_CAPACITY (8*1024*1024)
+#endif
 
+typedef struct { char buffer[CONSTRUCT_TEMP_CAPACITY]; size_t size; } CONSTRUCT_Temp;
 static CONSTRUCT_Temp CONSTRUCT_global_temp = {0};
 
-CONSTRUCT_DEF char* CONSTRUCT_temp_sprintf(const char* format, ...) {
-    va_list args;
-    va_start(args, format);
-    size_t n = vsnprintf(NULL, 0, format, args);
-    va_end(args);
-    CONSTRUCT_da_resize(&CONSTRUCT_global_temp, n+1);
-    va_start(args, format);
-    vsnprintf(CONSTRUCT_global_temp.items, n + 1, format, args);
-    va_end(args);
-    return CONSTRUCT_global_temp.items;
+CONSTRUCT_DEF char* CONSTRUCT_utemp_vsprintf(CONSTRUCT_Temp* temp, const char* format, va_list args) {
+    va_list args_copy;
+    va_copy(args_copy, args);
+    int n = vsnprintf(NULL, 0, format, args_copy);
+    va_end(args_copy);
+    CONSTRUCT_ASSERT(n >= 0 && "vsnprintf encoding error");
+    CONSTRUCT_ASSERT(temp->size + (size_t)n + 1 <= CONSTRUCT_TEMP_CAPACITY && "Temp arena overflow, increase CONSTRUCT_TEMP_CAPACITY");
+    char* result = temp->buffer + temp->size;
+    vsnprintf(result, (size_t)n + 1, format, args);
+    temp->size += (size_t)n + 1;
+    return result;
 }
-CONSTRUCT_DEF char* CONSTRUCT_temp_strdup(char* str){
-    size_t n = strlen(str);
-    CONSTRUCT_da_resize(&CONSTRUCT_global_temp, n+1);
-    memcpy(CONSTRUCT_global_temp.items, str, n);
-    CONSTRUCT_global_temp.items[n] = '\0';
-    return CONSTRUCT_global_temp.items;
-}
-CONSTRUCT_DEF char* CONSTRUCT_temp_strndup(char* str, size_t n){
-    CONSTRUCT_da_resize(&CONSTRUCT_global_temp, n+1);
-    memcpy(CONSTRUCT_global_temp.items, str, n);
-    CONSTRUCT_global_temp.items[n] = '\0';
-    return CONSTRUCT_global_temp.items;
-}
-CONSTRUCT_DEF void CONSTRUCT_temp_reset(void) {CONSTRUCT_da_reset(&CONSTRUCT_global_temp);}
-CONSTRUCT_DEF void CONSTRUCT_temp_free(void) {CONSTRUCT_da_free(&CONSTRUCT_global_temp);}
-
 CONSTRUCT_DEF char* CONSTRUCT_utemp_sprintf(CONSTRUCT_Temp* temp, const char* format, ...) {
-    va_list args;
-    va_start(args, format);
-    size_t n = vsnprintf(NULL, 0, format, args);
+    va_list args; va_start(args, format);
+    char* result = CONSTRUCT_utemp_vsprintf(temp, format, args);
     va_end(args);
-    CONSTRUCT_da_resize(temp, n+1);
-    va_start(args, format);
-    vsnprintf(temp->items, n + 1, format, args);
-    va_end(args);
-    return temp->items;
+    return result;
 }
-CONSTRUCT_DEF char* CONSTRUCT_utemp_strdup(CONSTRUCT_Temp* temp, char* str){
+CONSTRUCT_DEF char* CONSTRUCT_utemp_strdup(CONSTRUCT_Temp* temp, char* str) {
     size_t n = strlen(str);
-    CONSTRUCT_da_resize(temp, n+1);
-    memcpy(temp->items, str, n);
-    temp->items[n] = '\0';
-    return temp->items;
+    CONSTRUCT_ASSERT(temp->size + n + 1 <= CONSTRUCT_TEMP_CAPACITY && "Temp arena overflow");
+    char* result = temp->buffer + temp->size;
+    memcpy(result, str, n); result[n] = '\0';
+    temp->size += n + 1;
+    return result;
 }
-CONSTRUCT_DEF char* CONSTRUCT_utemp_strndup(CONSTRUCT_Temp* temp, char* str, size_t n){
-    CONSTRUCT_da_resize(temp, n+1);
-    memcpy(temp->items, str, n);
-    temp->items[n] = '\0';
-    return temp->items;
+CONSTRUCT_DEF char* CONSTRUCT_utemp_strndup(CONSTRUCT_Temp* temp, char* str, size_t n) {
+    CONSTRUCT_ASSERT(temp->size + n + 1 <= CONSTRUCT_TEMP_CAPACITY && "Temp arena overflow");
+    char* result = temp->buffer + temp->size;
+    memcpy(result, str, n); result[n] = '\0';
+    temp->size += n + 1;
+    return result;
 }
-CONSTRUCT_DEF void CONSTRUCT_utemp_reset(CONSTRUCT_Temp* temp) {CONSTRUCT_da_reset(temp);}
-CONSTRUCT_DEF void CONSTRUCT_utemp_free(CONSTRUCT_Temp* temp) {CONSTRUCT_da_free(temp);}
+CONSTRUCT_DEF void CONSTRUCT_utemp_reset(CONSTRUCT_Temp* temp) { temp->size = 0; }
+CONSTRUCT_DEF void CONSTRUCT_utemp_free(CONSTRUCT_Temp* temp) { (void)temp;}
+
+CONSTRUCT_DEF char* CONSTRUCT_temp_sprintf(const char* format, ...) {
+    va_list args; va_start(args, format);
+    char* result = CONSTRUCT_utemp_vsprintf(&CONSTRUCT_global_temp, format, args);
+    va_end(args);
+    return result;
+}
+CONSTRUCT_DEF char* CONSTRUCT_temp_strdup(char* str) { return CONSTRUCT_utemp_strdup(&CONSTRUCT_global_temp, str); }
+CONSTRUCT_DEF char* CONSTRUCT_temp_strndup(char* str, size_t n) { return CONSTRUCT_utemp_strndup(&CONSTRUCT_global_temp, str, n); }
+CONSTRUCT_DEF void  CONSTRUCT_temp_reset(void) { CONSTRUCT_utemp_reset(&CONSTRUCT_global_temp); }
+CONSTRUCT_DEF void  CONSTRUCT_temp_free(void) { CONSTRUCT_utemp_free(&CONSTRUCT_global_temp); }
 
 //================================================================
 //SECTION: Logging
@@ -189,29 +299,14 @@ typedef enum {CONSTRUCT_INFO, CONSTRUCT_WARNING, CONSTRUCT_ERROR} CONSTRUCT_LogT
 
 CONSTRUCT_DEF void CONSTRUCT_print_log(CONSTRUCT_LogType level, const char* fmt, ...) {
     switch (level) {
-        case CONSTRUCT_INFO: 
-            printf("[INFO] "); 
-            break;
-        case CONSTRUCT_WARNING: 
-            #ifndef _WIN32
-                printf("\x1B[33m");
-            #endif
-            printf("[WARNING] "); 
-            break;
-        case CONSTRUCT_ERROR:
-            #ifndef _WIN32 
-                printf("\x1B[31;1;4m");
-            #endif
-            printf("[ERROR] "); 
-            break;
+        case CONSTRUCT_INFO: printf("[INFO] "); break;
+        case CONSTRUCT_WARNING: printf("[WARNING] "); break;
+        case CONSTRUCT_ERROR: printf("[ERROR] "); break;
     }
     va_list args;
     va_start(args, fmt);
     vprintf(fmt, args);
     va_end(args);
-    #ifndef _WIN32
-        printf("\x1B[0m");
-    #endif
     printf(CONSTRUCT_NL);
 }
 CONSTRUCT_DEF void CONSTRUCT_fprint_log(const char* file_path, CONSTRUCT_LogType level, const char* fmt, ...) {
@@ -260,11 +355,13 @@ CONSTRUCT_DEF void CONSTRUCT_sv_strip_left(CONSTRUCT_StringView* sv) {while (sv-
 CONSTRUCT_DEF void CONSTRUCT_sv_strip_right(CONSTRUCT_StringView* sv) {while (sv->len > 0 && isspace(sv->str[sv->len - 1])) --sv->len;}
 CONSTRUCT_DEF void CONSTRUCT_sv_strip(CONSTRUCT_StringView* sv) {CONSTRUCT_sv_strip_left(sv); CONSTRUCT_sv_strip_right(sv);}
 
-CONSTRUCT_DEF bool CONSTRUCT_sv_equal(CONSTRUCT_StringView* a, CONSTRUCT_StringView* b) {
-    size_t len_a = a->len;
-    size_t len_b = b->len;
-    if (len_a != len_b) return false;
-    return memcmp(a->str, b->str, len_a) == 0;
+CONSTRUCT_DEF bool CONSTRUCT_sv_equal_sv(CONSTRUCT_StringView* a, CONSTRUCT_StringView* b) {
+    if (a->len != b->len) return false;
+    return memcmp(a->str, b->str, a->len) == 0;
+}
+CONSTRUCT_DEF bool CONSTRUCT_sv_equal_cstr(CONSTRUCT_StringView* a, char* cstr) {
+    if (a->len != strlen(cstr)) return false;
+    return memcmp(a->str, cstr, a->len) == 0;
 }
 CONSTRUCT_DEF bool CONSTRUCT_sv_ends_with(CONSTRUCT_StringView* sv, char* cstr) {
     size_t cstr_len = strlen(cstr);
@@ -284,9 +381,8 @@ CONSTRUCT_DEF void CONSTRUCT_sv_to_cstr(CONSTRUCT_StringView* sv, char* cstr){
 CONSTRUCT_DEF CONSTRUCT_StringView CONSTRUCT_sv_from_cstr(const char* cstr) {return (CONSTRUCT_StringView){cstr, strlen(cstr)};}
 CONSTRUCT_DEF CONSTRUCT_StringView CONSTRUCT_sv_from_parts(const char* cstr, size_t len) {return (CONSTRUCT_StringView){cstr, len};}
 
-#define CONSTRUCT_sv_len(sv) ((sv).len)
-#define CONSTRUCT_SV_Fmt "%.*s"
-#define CONSTRUCT_SV_Arg(sv) (int)CONSTRUCT_sv_len(sv), (sv).str
+#define CONSTRUCT_sv_FMT "%.*s"
+#define CONSTRUCT_sv_ARG(sv) (int)(sv).len, (sv).str
 
 //================================================================
 //SECTION: File Handling
@@ -354,7 +450,7 @@ CONSTRUCT_DEF bool CONSTRUCT_fetch_file(const char* path, const char* url) {retu
 #define CONSTRUCT_move_file_l(src_path, dst_path) do {if(CONSTRUCT_move_file(src_path, dst_path)) CONSTRUCT_print_log(CONSTRUCT_INFO, "MOVED FILE %s TO %s", src_path, dst_path); else CONSTRUCT_print_log(CONSTRUCT_ERROR, "COULDNT MOVE FILE %s TO %s", src_path, dst_path);} while(0)
 #define CONSTRUCT_delete_file_l(path) do {if(CONSTRUCT_delete_file(path)) CONSTRUCT_print_log(CONSTRUCT_INFO, "DELETED FILE %s", path); else CONSTRUCT_print_log(CONSTRUCT_ERROR, "COULDNT DELETE FILE %s", path);} while(0)
 #define CONSTRUCT_delete_directory_l(path) do {if(CONSTRUCT_delete_directory(path)) CONSTRUCT_print_log(CONSTRUCT_INFO, "DELETED DIRECTORY %s", path); else CONSTRUCT_print_log(CONSTRUCT_ERROR, "COULDNT DELETE DIRECTORY %s", path);} while(0)
-#define CONSTRUCT_fetch_file_l(path, url) do {if(CONSTRUCT_fetch_file(path, url)) CONSTRUCT_print_log(CONSTRUCT_INFO, "FETCHED FILE %s TO %s", path, url); else CONSTRUCT_print_log(CONSTRUCT_ERROR, "COULDNT FETCH FILE %s TO %s", path, url);} while(0)
+#define CONSTRUCT_fetch_file_l(path, url) do {if(CONSTRUCT_fetch_file(path, url)) CONSTRUCT_print_log(CONSTRUCT_INFO, "FETCHED FILE %s TO %s", url, path); else CONSTRUCT_print_log(CONSTRUCT_ERROR, "COULDNT FETCH FILE %s TO %s", url, path);} while(0)
 #define CONSTRUCT_read_entire_file_l(path, dab) do {if(CONSTRUCT_read_entire_file(path, dab)) CONSTRUCT_print_log(CONSTRUCT_INFO, "READ FILE %s", path); else CONSTRUCT_print_log(CONSTRUCT_ERROR, "COULDNT READ FILE %s", path);} while(0)
 #define CONSTRUCT_write_entire_file_l(path, data, size) do {if(CONSTRUCT_write_entire_file(path, data, size)) CONSTRUCT_print_log(CONSTRUCT_INFO, "WROTE FILE %s", path); else CONSTRUCT_print_log(CONSTRUCT_ERROR, "COULDNT WRITE FILE %s", path);} while(0)
 
@@ -371,7 +467,7 @@ CONSTRUCT_DEF bool CONSTRUCT_fetch_file(const char* path, const char* url) {retu
 #define CONSTRUCT_PANIC(message) do {printf("%s:%d: PANIC: %s\n", __FILE__, __LINE__, message); abort();} while(0)
 #define CONSTRUCT_UNREACHABLE() do {printf("%s:%d: UNREACHABLE\n", __FILE__, __LINE__); abort();} while(0)
 
-#define CONSTRUCT_pop_first(xs, xs_sz) (assert((xs_sz) > 0), (xs_sz)--, *(xs)++)
+#define CONSTRUCT_pop_first(xs, xs_sz) (CONSTRUCT_ASSERT((xs_sz) > 0), (xs_sz)--, *(xs)++)
 #define CONSTRUCT_return_defer(value) do { result = (value); goto defer; } while(0)
 
 #ifdef CONSTRUCT_CLOCK
@@ -412,6 +508,10 @@ CONSTRUCT_DEF bool CONSTRUCT_fetch_file(const char* path, const char* url) {retu
 //SECTION: Util
 //================================================================
 
+CONSTRUCT_DEF bool CONSTRUCT_str_is(char* a, char* b){
+	return (strcmp(a, b)==0);
+}
+
 CONSTRUCT_DEF bool CONSTRUCT_arg_is(size_t i, char* argument, size_t argc, char** argv){
     if (argc<i+1) return false;
 	return (strcmp(argv[i], argument)==0);
@@ -422,13 +522,13 @@ CONSTRUCT_DEF bool CONSTRUCT_shell(char* shell){
     return !system(shell);
 }
 
-CONSTRUCT_DEF bool CONSTRUCT_fetch_if_not_exist(char* path, char* url){
+CONSTRUCT_DEF bool CONSTRUCT_fetch_if_not_exists(char* path, char* url){
     if (!CONSTRUCT_file_exists(path)) return CONSTRUCT_fetch_file(path, url);
     return true;
 }
 
 //================================================================
-//SECTION: Include scanning
+//SECTION: Dependency scanning
 //================================================================
 
 CONSTRUCT_da_define(char*, CONSTRUCT_Dependencies);
@@ -438,7 +538,7 @@ CONSTRUCT_DEF void CONSTRUCT_dependencies_free(CONSTRUCT_Dependencies* deps) {
     CONSTRUCT_da_free(deps);
 }
 
-CONSTRUCT_DEF size_t CONSTRUCT_scan_includes(const char* src_file_path, CONSTRUCT_Dependencies* dependencies) {
+CONSTRUCT_DEF size_t CONSTRUCT_dependencies_scan(const char* src_file_path, CONSTRUCT_Dependencies* dependencies) {
     CONSTRUCT_Dependencies worklist = {0};
     CONSTRUCT_da_append(&worklist, (char*)src_file_path);
     size_t total = 0;
@@ -490,10 +590,10 @@ CONSTRUCT_da_define(char*, CONSTRUCT_Command);
 CONSTRUCT_DEF void CONSTRUCT_command_render(CONSTRUCT_Command* command, CONSTRUCT_StringBuilder* render){
     CONSTRUCT_sb_reset(render);
     for (size_t i = 0; i < command->count; ++i) {
-        const char* arg = command->items[i];
+        char* arg = command->items[i];
         if (arg == NULL) break;
         if (i > 0) CONSTRUCT_sb_append_chr(render, ' ');
-        CONSTRUCT_sb_append_str(render, arg);
+        CONSTRUCT_sb_append_cstr(render, arg);
     }
     CONSTRUCT_sb_append_null(render);
 }
@@ -504,7 +604,7 @@ CONSTRUCT_DEF bool CONSTRUCT_command_run(CONSTRUCT_Command* command) {
     CONSTRUCT_sb_free(&command_sb);
     return result;
 }
-CONSTRUCT_DEF void CONSTRUCT_print_command(CONSTRUCT_Command* command) {
+CONSTRUCT_DEF void CONSTRUCT_command_print(CONSTRUCT_Command* command) {
     CONSTRUCT_StringBuilder command_sb = {0};
     CONSTRUCT_command_render(command, &command_sb);
     printf("%s\n", command_sb.items);
@@ -534,7 +634,7 @@ CONSTRUCT_DEF bool CONSTRUCT_run_construct(CONSTRUCT_ConstructRules* construct_r
     if (!rule_deps && n > 0) CONSTRUCT_return_defer(false);
     for (size_t i = 0; i < n; ++i) {
         CONSTRUCT_ConstructRule* rule = &construct_rules->items[i];
-        for (size_t k = 0; k < rule->dependencies_count; ++k) CONSTRUCT_scan_includes(rule->dependencies[k], &rule_deps[i]);
+        for (size_t k = 0; k < rule->dependencies_count; ++k) CONSTRUCT_dependencies_scan(rule->dependencies[k], &rule_deps[i]);
     }
     while (true) {
         size_t run_count = 0;
@@ -568,7 +668,7 @@ CONSTRUCT_DEF bool CONSTRUCT_run_construct(CONSTRUCT_ConstructRules* construct_r
         for (size_t i = 0; i < n; ++i) just_ran.items[i] = false;
         for (size_t i = 0; i < n; ++i) {
             if (!to_run.items[i]) continue;
-            if (verbose) CONSTRUCT_print_command(&construct_rules->items[i].command);
+            if (verbose) CONSTRUCT_command_print(&construct_rules->items[i].command);
             if (!CONSTRUCT_command_run(&construct_rules->items[i].command)) CONSTRUCT_return_defer(false);
             just_ran.items[i] = true;
             if (construct_rules->items[i].targets_count == 0) already_ran.items[i] = true;
@@ -588,6 +688,9 @@ defer:
 #ifndef CONSTRUCT_STRIP_PREFIX_GUARD_
 #define CONSTRUCT_STRIP_PREFIX_GUARD_
     #ifndef CONSTRUCT_DONT_STRIP_PREFIX
+    	#define PLATFORM_OS CONSTRUCT_PLATFORM_OS
+    	#define PLATFORM_ARCH CONSTRUCT_PLATFORM_ARCH
+    	#define PLATFORM_COMPILER CONSTRUCT_PLATFORM_COMPILER
         #define ASSERT CONSTRUCT_ASSERT
         #define REALLOC CONSTRUCT_REALLOC
         #define FREE CONSTRUCT_FREE
@@ -597,14 +700,24 @@ defer:
         #define da_append_many CONSTRUCT_da_append_many
         #define da_resize CONSTRUCT_da_resize
         #define da_remove_unordered CONSTRUCT_da_remove_unordered
+        #define da_remove_unordered_many CONSTRUCT_da_remove_unordered_many
+        #define da_remove_ordered CONSTRUCT_da_remove_ordered
+        #define da_remove_ordered_many CONSTRUCT_da_remove_ordered_many
+        #define da_insert CONSTRUCT_da_insert
+        #define da_insert_many CONSTRUCT_da_insert_many
         #define da_foreach CONSTRUCT_da_foreach
         #define da_reset CONSTRUCT_da_reset
         #define da_free CONSTRUCT_da_free
         #define StringBuilder CONSTRUCT_StringBuilder
         #define sb_append_chr CONSTRUCT_sb_append_chr
         #define sb_append_buf CONSTRUCT_sb_append_buf
-        #define sb_append_str CONSTRUCT_sb_append_str
+        #define sb_append_cstr CONSTRUCT_sb_append_cstr
         #define sb_append_null CONSTRUCT_sb_append_null
+        #define sb_remove CONSTRUCT_sb_remove
+        #define sb_remove_slice CONSTRUCT_sb_remove_slice
+        #define sb_insert CONSTRUCT_sb_insert
+        #define sb_insert_buf CONSTRUCT_sb_insert_buf
+        #define sb_insert_cstr CONSTRUCT_sb_insert_cstr
         #define sb_str CONSTRUCT_sb_str
         #define sb_len CONSTRUCT_sb_len
         #define sb_get CONSTRUCT_sb_get
@@ -612,8 +725,8 @@ defer:
         #define sb_free CONSTRUCT_sb_free
         #define sb_last CONSTRUCT_sb_last
         #define sb_foreach CONSTRUCT_sb_foreach
-        #define SB_Fmt CONSTRUCT_SB_Fmt
-        #define SB_Arg CONSTRUCT_SB_Arg
+        #define SB_Fmt CONSTRUCT_sb_FMT
+        #define SB_Arg CONSTRUCT_sb_ARG
         #define Temp CONSTRUCT_Temp
         #define temp_sprintf CONSTRUCT_temp_sprintf
         #define temp_strdup CONSTRUCT_temp_strdup
@@ -638,15 +751,15 @@ defer:
         #define sv_strip_left CONSTRUCT_sv_strip_left
         #define sv_strip_right CONSTRUCT_sv_strip_right
         #define sv_strip CONSTRUCT_sv_strip
-        #define sv_equal CONSTRUCT_sv_equal
+        #define sv_equal_sv CONSTRUCT_sv_equal_sv
+        #define sv_equal_cstr CONSTRUCT_sv_equal_cstr
         #define sv_ends_with CONSTRUCT_sv_ends_with
         #define sv_starts_with CONSTRUCT_sv_starts_with
         #define sv_to_cstr CONSTRUCT_sv_to_cstr
         #define sv_from_cstr CONSTRUCT_sv_from_cstr
         #define sv_from_parts CONSTRUCT_sv_from_parts
-        #define sv_len CONSTRUCT_sv_len
-        #define SV_Fmt CONSTRUCT_SV_Fmt
-        #define SV_Arg CONSTRUCT_SV_Arg
+        #define SV_Fmt CONSTRUCT_sv_FMT
+        #define SV_Arg CONSTRUCT_sv_ARG
         #define NL CONSTRUCT_NL 
         #define PS CONSTRUCT_PS 
         #define file_exists CONSTRUCT_file_exists
@@ -704,18 +817,21 @@ defer:
         #define u_expect_t CONSTRUCT_u_expect_t
         #define u_expect_f CONSTRUCT_u_expect_f
         #define u_expect_p CONSTRUCT_u_expect_p
+        #define str_is CONSTRUCT_str_is
         #define arg_is CONSTRUCT_arg_is
         #define shell CONSTRUCT_shell
-        #define fetch_if_not_exist CONSTRUCT_fetch_if_not_exist
+        #define fetch_if_not_exists CONSTRUCT_fetch_if_not_exists
         #define Dependencies CONSTRUCT_Dependencies
         #define dependencies_free CONSTRUCT_dependencies_free
-        #define scan_includes CONSTRUCT_scan_includes
+        #define dependencies_scan CONSTRUCT_dependencies_scan 
         #define Command CONSTRUCT_Command
         #define command_append CONSTRUCT_command_append
+        #define command_append_separator CONSTRUCT_command_append_separator
         #define command_extend CONSTRUCT_command_extend
         #define command_free CONSTRUCT_command_free
         #define command_render CONSTRUCT_command_render
         #define command_run CONSTRUCT_command_run
+        #define command_print CONSTRUCT_command_print
         #define ConstructRule CONSTRUCT_ConstructRule
         #define ConstructRules CONSTRUCT_ConstructRules
         #define Bools CONSTRUCT_Bools
@@ -724,4 +840,3 @@ defer:
 #endif // CONSTRUCT_STRIP_PREFIX_GUARD_
 
 #endif // _CONSTRUCT_H
-
